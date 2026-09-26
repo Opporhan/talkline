@@ -1,9 +1,9 @@
 {
   "ext_name": {
-    "message": "skimcast"
+    "message": "Talkline"
   },
   "context_menu_fetch": {
-    "message": "skimcast: Transcript'i Getir"
+    "message": "Talkline: Transcript'i Getir"
   },
   "sidebar_collapse_hint": {
     "message": "Küçült"
@@ -15,10 +15,10 @@
     "message": "YouTube'un sayfa yapısı değişmiş ve kenar paneli yerleşemedi — transcript'i yeni sekmede açmak için tıkla."
   },
   "ext_description": {
-    "message": "Linki yapıştır, zaman damgalı transcript'i al — arayabilir, tıkla-git yapabilir, reklamları atlayabilirsin. YouTube, podcast, makale. Tamamen yerel, hiçbir API'ye gitmez."
+    "message": "Linki yapıştır, zaman damgalı transcript'i al: ara, tıkla-git, dinle, arşivle. YouTube, podcast, makale. Hesap yok, sunucu yok."
   },
   "popup_title": {
-    "message": "skimcast"
+    "message": "Talkline"
   },
   "url_label": {
     "message": "Link"
@@ -49,27 +49,6 @@
   },
   "library_btn": {
     "message": "Kütüphane"
-  },
-  "manual_add_toggle": {
-    "message": "Elle transcript ekle"
-  },
-  "manual_title_label": {
-    "message": "Başlık"
-  },
-  "manual_title_placeholder": {
-    "message": "ör. video/bölüm adı"
-  },
-  "manual_text_label": {
-    "message": "Metin"
-  },
-  "manual_text_placeholder": {
-    "message": "Metnini yapıştır — boş satırla ayrılmış her paragraf ayrı bir blok olur, ya da zaman damgası için [dd:ss] ile başlayan satırlar kullan…"
-  },
-  "manual_save_btn": {
-    "message": "Kaydet"
-  },
-  "manual_error_empty": {
-    "message": "Önce bir metin yapıştır."
   },
   "library_link": {
     "message": "← Kütüphane"
@@ -302,38 +281,8 @@
   "fav_removed": {
     "message": "Favorilerden çıkarıldı"
   },
-  "section_translate": {
-    "message": "Çeviri"
-  },
   "section_tts": {
     "message": "Sesli Okuma"
-  },
-  "translate_btn": {
-    "message": "Çevir"
-  },
-  "translate_original_btn": {
-    "message": "Orijinali Göster"
-  },
-  "translate_preparing": {
-    "message": "Hazırlanıyor…"
-  },
-  "translate_downloading": {
-    "message": "Dil paketi indiriliyor…"
-  },
-  "translate_progress": {
-    "message": "Çevriliyor…"
-  },
-  "translate_done": {
-    "message": "Çevrildi."
-  },
-  "translate_error": {
-    "message": "Çeviri hatası:"
-  },
-  "translate_no_source": {
-    "message": "Kaynak dil tespit edilemedi, çeviri kullanılamıyor."
-  },
-  "translate_unsupported_device": {
-    "message": "Bu tarayıcı/cihaz cihaz üzerinde çeviriyi desteklemiyor (Windows/macOS/Linux'ta Chrome 138+ ve yeterli RAM/depolama/GPU gerekiyor). Bu kalıcı — burada hiçbir video için çalışmayacak."
   },
   "tts_btn": {
     "message": "Sesli Oku"
@@ -367,5 +316,8 @@
   },
   "resume_badge": {
     "message": "Devam Et"
+  },
+  "player_btn_hint": {
+    "message": "Talkline transcript panelini aç/kapat"
   }
 }

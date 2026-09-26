@@ -1,6 +1,12 @@
-# skimcast — proje notları
+# Talkline — proje notları
 
 Bu depoda iki AYRI ürün var, ortak kodları yok:
+
+**İsim:** Proje eskiden "skimcast"ti, 2026-09-26'da "Talkline" oldu (plugin: `talkline`). İÇ adlar bilerek
+"skimcast" kaldı ve DEĞİŞTİRİLMEMELİ: uzantının depolama anahtarları (`skimcastArchive:*`, `skimcastNotes`,
+`skimcastFolders`, … — kullanıcı arşivi ve yedek dosyaları bunlara bağlı), DOM id/sınıfları ve mesaj
+türleri (`skimcast-sidebar-panel`, `skimcast-seek` …), plugin'in `~/.cache/skimcast` venv'i ve
+`SKIMCAST_BOOTSTRAPPED` (değişirse herkes paketleri baştan kurar).
 
 ## 1) Claude Code plugin'i (`skills/summarize/`)
 
@@ -18,33 +24,34 @@ link → transcript → zaman damgalı özet. Kod bilinçli olarak **küçük** 
 ## 2) Tarayıcı uzantısı (`extension/`)
 
 Chrome/Edge uzantısı: link → aranabilir, tıkla-git yapılabilir transcript görüntüleyici + kişisel arşiv.
-**Özetleme YOK** — bir gece süren Groq (ücretsiz LLM) kota/güvenilirlik sorunlarından sonra bilinçli olarak
+**Özetleme ve çeviri YOK** — özetleme bir gece süren Groq (ücretsiz LLM) kota/güvenilirlik sorunlarından sonra bilinçli olarak
 terk edildi (bkz. git geçmişi); bunun yerine sağlam çalışan transcript-çekme parçası üzerine inşa edildi.
+Cihaz üzerindeki çeviri (`Translator` API) de kaldırıldı: kalitesi zayıftı (sayı atlama, özetleme,
+sızan etiketler) ve tarayıcıya göre değişiyordu (ör. Edge'de İngilizce→Türkçe yok). Dil tespiti
+(`LanguageDetector`) sesli okuma için kaldı.
 
-- `background.js`: transcript çekme (YouTube için barındırılan `server/`e fetch; podcast RSS/Apple/web
-  sayfası doğrudan JS fetch ile), arşive kaydetme, sağ tık menüsü, YouTube açıklamasından bölüm (chapter)
+- `background.js`: transcript çekme (YouTube: doğrudan tarayıcıdan InnerTube ANDROID istemcisiyle —
+  `fromYoutubeDirect`, kullanıcının kendi IP'sinden — YouTube `Origin: chrome-extension://…` isteğini 403
+  ile reddettiği için `declarativeNetRequest` oturum kuralıyla Origin youtube.com yapılıyor; podcast
+  RSS/Apple/web sayfası doğrudan JS fetch ile), arşive kaydetme, sağ tık menüsü, YouTube açıklamasından bölüm (chapter)
   tespiti (`fetchYoutubeChapters`, best-effort), videoyla-senkron mesaj yönlendirme (relay).
 - `youtube_sync.js`: YouTube izleme sayfasına enjekte edilen içerik betiği — video oynatma zamanını
   `background.js`'e bildirir (kimlik doğrulama gerektirmez, sadece "hangi video, kaçıncı saniye").
 - `viewer.js`: transcript'i gösterir — arama, tıkla-git, bölümler arası atlama, olası reklam tespiti, favori
   (yıldız + klasöre taşıma), videoyla senkron takip ("🔗", kelime kelime yaklaşık vurgu), sesli okuma
   (Web Speech API, kelime kelime GERÇEK vurgu — `boundary` olayı), video notu (paylaşılan Notlarım deposuna
-  yazar), cihaz üzerinde çeviri (`Translator`/`LanguageDetector` API, ücretsiz, API anahtarsız), TXT/PDF
-  indirme (PDF: `vendor/jspdf.umd.min.js` + Türkçe karakterler için gömülü font).
+  yazar), TXT/PDF indirme (PDF: `vendor/jspdf.umd.min.js` + Türkçe karakterler için gömülü font).
 - `library.js`: kütüphane — "Dosyalarım"/"Notlarım" iki sekme; Dosyalarım'da klasörler (özel ikon/görsel,
   not, sabitleme), arama, favoriler, "bunu hatırlıyor musun?" hatırlatma kartı; Notlarım'da birleşik not
   sistemi (`skimcastNotes` — video notu/favori notu/serbest not hepsi burada, isteğe bağlı kaynak bağlantısı
   ve alıntıyla); yedekleme/geri yükleme (notlar dahil), Markdown dışa aktarma.
 - `theme.js` / `lang.js`: paylaşılan tema (açık/koyu) ve arayüz dili (TR/EN, tarayıcı dilinden bağımsız).
 - Testler: `extension/test.mjs` (saf mantık fonksiyonları) — `node extension/test.mjs`.
-- `server/`: uzantının YouTube transcript'ini çektiği barındırılan (Cloud Run) küçük Flask servisi —
-  `skills/summarize/transcript.py`'yi kullanır (kod paylaşımı SADECE bu tek dosya için var). Eskiden
-  bunun yerine kullanıcının kendi bilgisayarında Python kurup çalıştırdığı bir "native messaging host"
-  vardı (`native_host.py` + `install_native_host.py`); sıradan kullanıcılar için kurulum engeli kabul
-  edilemez bulunduğundan kaldırıldı (bkz. git geçmişi). Bu, projenin "tamamen cihazda" mimarisinden TEK
-  istisna — sadece YouTube transcript'i bu sunucudan geçiyor, sunucu hiçbir şey saklamıyor. Deploy:
-  repo kökünden `gcloud run deploy skimcast-server --source . --region europe-west1 --allow-unauthenticated`
-  (kök `Dockerfile`, `server/main.py`'yi çalıştırır). Basit IP başına bellek-içi rate limit var.
+- Barındırılan sunucu YOK. Eskiden YouTube transcript'i önce kullanıcının bilgisayarındaki bir "native
+  messaging host" (Python kurulumu gerektirdiği için kaldırıldı), sonra bir Cloud Run sunucusu (`server/`;
+  YouTube veri merkezi IP'lerini engellediği için kaldırıldı) üzerinden çekiliyordu — bkz. git geçmişi.
+- Mağaza paketi: `python3 scripts/build_store_zip.py` (çıktı `dist/`) (manifest'ten `key`i çıkarır, test dosyalarını
+  dışarıda bırakır). Mağaza metinleri/izin gerekçeleri: `docs/store-listing.md`; gizlilik: `PRIVACY.md`.
 - **TUZAK:** `extension/` klasöründe (ya da içindeki bir dosyayı hedefleyerek) `python3 -m py_compile`
   veya benzeri bytecode-üreten bir komut ÇALIŞTIRMA — `extension/__pycache__/` oluşturur, Chrome/Edge
   "_" ile başlayan dosya/klasör adlarını reddettiği için uzantı hiç yüklenemez ("Cannot load extension

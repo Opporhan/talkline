@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""skimcast MCP sunucusu: Claude Desktop gibi terminalsiz istemcilerde link -> transcript aracı.
+"""Talkline MCP sunucusu: Claude Desktop gibi terminalsiz istemcilerde link -> transcript aracı.
 
 Özeti istemcideki Claude yazar (ayrı LLM ya da API anahtarı yok); bu sunucu yalnızca transcript'i getirir.
 Eksik paketleri transcript.py ile aynı özel venv'e kurar (ilk açılışta ~1 dk sürebilir).
@@ -36,7 +36,7 @@ def _rules() -> str:
     )
 
 
-server = FastMCP("skimcast", instructions=_rules())
+server = FastMCP("talkline", instructions=_rules())
 
 
 @server.tool()

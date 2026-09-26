@@ -42,14 +42,15 @@ let totalFns = 0;
   const names = [
     "fmtTime", "toBlocks", "youtubeId", "parseSubtitles", "parsePodcastJson",
     "hashString", "stableId", "parseTimeLabel", "stripNonSpeech", "parseTimedBlocks",
-    "blocksFromNative", "textToManualBlocks",
+    "blocksFromNative",
+    "pickCaptionTrack", "decodeEntities", "parseCaptionXml", "blocksWithWords",
   ];
   const preamble = "const BLOCK_SECONDS = 30;\nconst YT_ID_RE = " + src.match(/const YT_ID_RE = (.+);/)[1] + ";\n" +
     "const NON_SPEECH_RE = " + src.match(/const NON_SPEECH_RE = (.+);/)[1] + ";\n";
   const {
     fmtTime, toBlocks, youtubeId, parseSubtitles, parsePodcastJson,
     hashString, stableId, parseTimeLabel, stripNonSpeech, parseTimedBlocks, blocksFromNative,
-    textToManualBlocks,
+    pickCaptionTrack, parseCaptionXml, blocksWithWords,
   } = await extract("background.js", names, preamble);
   totalFns += names.length;
 
@@ -105,8 +106,8 @@ let totalFns = 0;
     [{ sec: 5, text: "merhaba dünya" }, { sec: 15, text: "devam ediyor" }] // sadece "(müzik)" olan blok tamamen düşer
   );
 
-  // blocksFromNative: native_host.py'den gelen ham blok+kelime-grubu listesini temizler — bu oturumda
-  // eklendi (videoyla kelime kelime senkron takip için), önceden hiç test edilmemişti.
+  // blocksFromNative: YouTube yolundan gelen ham blok+kelime-grubu listesini temizler (videoyla kelime
+  // kelime senkron takip için).
   const raw = [
     { sec: 0, text: "merhaba dünya", words: [[0, "merhaba"], [0.5, "dünya"]] },
     { sec: 10, text: "(müzik)", words: [[10, "(müzik)"]] }, // tamamen etiketten ibaret blok tamamen düşmeli
@@ -119,24 +120,30 @@ let totalFns = 0;
   assert.deepEqual(cleaned[1].words.map((w) => w.text), ["devam", "ediyor"]); // (alkış) kelime grubu da düşmeli
   assert.equal(blocksFromNative(undefined).length, 0); // rawBlocks hiç gelmezse çökmemeli
 
-  // textToManualBlocks: popup'taki "Elle transcript ekle" formunun ayrıştırma mantığı — zaman
-  // damgalı ("[mm:ss]") satırlar varsa öyle, yoksa boş satırla ayrılmış paragrafları ayrı blok say.
+  // pickCaptionTrack: transcript.py'deki _pick_track ile aynı öncelik (elle > otomatik, sonra dil sırası).
+  const tr = (languageCode, kind) => ({ languageCode, kind });
+  assert.equal(pickCaptionTrack([tr("en", "asr"), tr("tr"), tr("en")], ["tr", "en"]).languageCode, "tr");
+  assert.equal(pickCaptionTrack([tr("en", "asr"), tr("de")], ["tr", "en"]).languageCode, "de"); // elle, dil dışı
+  assert.equal(pickCaptionTrack([tr("fr", "asr"), tr("en-US", "asr")], ["tr", "en"]).languageCode, "en-US");
+  assert.equal(pickCaptionTrack([], ["tr"]), null);
+
+  // parseCaptionXml: YouTube'un <text start=..> XML'i; çift kaçışlı varlıklar ve iç etiketler.
   assert.deepEqual(
-    textToManualBlocks("Birinci paragraf\nikinci satır.\n\nİkinci paragraf."),
-    [{ sec: null, text: "Birinci paragraf ikinci satır." }, { sec: null, text: "İkinci paragraf." }]
+    parseCaptionXml('<transcript><text start="5.3" dur="1">it&amp;#39;s &lt;b&gt;ok</text>' +
+      '<text start="7" dur="1"><font color="#fff">a &amp;amp; b</font></text><text start="9" dur="1"> </text></transcript>'),
+    [[5.3, "it's ok"], [7, "a & b"]],
   );
-  assert.deepEqual(
-    textToManualBlocks("[00:05] merhaba\n[00:10] dünya"),
-    [{ sec: 5, text: "merhaba" }, { sec: 10, text: "dünya" }]
-  );
-  assert.equal(textToManualBlocks("").length, 0);
+
+  // blocksWithWords: transcript.py'nin to_blocks'uyla aynı birleştirme; ham segmentler words'te.
+  const bw = blocksWithWords([[0, "bir."], [10, "iki"], [31, "üç."], [40, "dört"]]);
+  assert.deepEqual(bw.map((b) => [b.sec, b.text]), [[0, "bir. iki üç."], [40, "dört"]]);
+  assert.deepEqual(bw[0].words, [[0, "bir."], [10, "iki"], [31, "üç."]]);
 }
 
-// ================================================================== viewer.js (çeviri kalitesi + kelime takibi)
+// ================================================================== viewer.js (reklam tespiti + kelime takibi)
 {
   const names = [
     "escapeHtml", "fmtTime", "isLikelyAd", "jumpUrl", "wordsHtml", "wordIndexAtChar",
-    "splitSentences", "protectNumbers", "restoreNumbers", "isSuspiciouslyShort", "cleanTranslation",
   ];
   const preamble = `
 const AD_PATTERNS = [
@@ -150,11 +157,9 @@ const AD_PATTERNS = [
   /\\bpaid partnership\\b/i,
   /\\bthanks to .{0,30} for sponsoring\\b/i,
 ];
-const LEAKED_TAG_RE = /<[^<>]*>/g;
 `;
   const {
     escapeHtml, fmtTime, isLikelyAd, jumpUrl, wordsHtml, wordIndexAtChar,
-    splitSentences, protectNumbers, restoreNumbers, isSuspiciouslyShort, cleanTranslation,
   } = await extract("viewer.js", names, preamble);
   totalFns += names.length;
 
@@ -166,40 +171,6 @@ const LEAKED_TAG_RE = /<[^<>]*>/g;
   assert.equal(jumpUrl({ linkPrefix: "https://youtu.be/x?t=" }, 65), "https://youtu.be/x?t=65");
   assert.equal(jumpUrl({}, 65), null);
   assert.equal(jumpUrl({ linkPrefix: "https://youtu.be/x?t=" }, null), null);
-
-  // splitSentences: temel bölme + noktalama olmayan kalan parça + ondalık sayıyı YANLIŞLIKLA bölmemeli
-  // (bilinen bir sınır: "3.14" içindeki nokta cümle sonu sanılabilir — bunu da doğruluyoruz).
-  assert.deepEqual(splitSentences("Merhaba dünya. Nasılsın?"), ["Merhaba dünya.", "Nasılsın?"]);
-  assert.deepEqual(splitSentences("Tek cümle, noktasız"), ["Tek cümle, noktasız"]);
-  assert.deepEqual(splitSentences("Bitti."), ["Bitti."]);
-
-  // protectNumbers/restoreNumbers: sayılar birebir (ondalık/binlik dahil) geri gelmeli.
-  {
-    const { protectedText, numbers } = protectNumbers("160'tan 180'e, ya da 3.14 civarı.");
-    // Yer tutucuların KENDİSİ rakam içeriyor (⟦0⟧ gibi) — asıl kontrol edilen, orijinal sayıların
-    // (160/180/3.14) yer tutucu DIŞINDA hiç kalmamış olması.
-    assert.ok(!/\d/.test(protectedText.replace(/⟦\d+⟧/g, "")), "sayılar yer tutucu dışında kalmamalı: " + protectedText);
-    assert.equal(restoreNumbers(protectedText, numbers), "160'tan 180'e, ya da 3.14 civarı.");
-    assert.deepEqual(numbers, ["160", "180", "3.14"]);
-  }
-  assert.equal(protectNumbers("hiç sayı yok").numbers.length, 0);
-
-  // isSuspiciouslyShort: eksik çeviri tespiti — kalite kapısının kalbi.
-  assert.ok(isSuspiciouslyShort(
-    "The number went from 160 to 180 degrees today.", "180 derece."
-  ), "belirgin şekilde kısaltılmış çeviri yakalanmalı");
-  assert.ok(!isSuspiciouslyShort(
-    "The number went from 160 to 180 degrees today.", "Sayı bugün 160 dereceden 180 dereceye çıktı."
-  ), "tam bir çeviri yanlışlıkla kısa sayılmamalı");
-  assert.ok(!isSuspiciouslyShort("Hi.", "Selam."), "çok kısa cümlelerde oran kontrol edilmemeli");
-
-  // cleanTranslation: bilinen sızıntı kalıplarının HEPSİ (boşluklu varyant dahil) temizlenmeli.
-  assert.equal(cleanTranslation("Merhaba dünya", "x"), "Merhaba dünya");
-  assert.equal(cleanTranslation("Merhaba <b9000></b900> dünya", "x"), "Merhaba dünya");
-  assert.equal(cleanTranslation("Selam < / b9000> nasılsın", "x"), "Selam nasılsın");
-  assert.equal(cleanTranslation("test >> >> kelime", "x"), "test kelime");
-  assert.equal(cleanTranslation("", "yedek"), "yedek");
-  assert.equal(cleanTranslation("<>>><<>", "yedek"), "yedek"); // tamamen sızıntıdan ibaretse yedeğe düş
 
   // wordsHtml/wordIndexAtChar: kelime kelime vurgulama alt yapısı — kelime sayısı ve karakter->indeks eşlemesi.
   const html = wordsHtml("Hello world");

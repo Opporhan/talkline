@@ -184,7 +184,7 @@ def _transcript(n_blocks):
 def test_emit_short_prints_whole_transcript(tmp_path, capsys):
     tr.print_result(*tr.write_output(_transcript(2), "https://x", tmp_path))
     out = capsys.readouterr().out
-    assert "=== SKIMCAST TRANSCRIPT ===" in out and "link_prefix: https://youtu.be/ID?t=" in out
+    assert "=== TALKLINE TRANSCRIPT ===" in out and "link_prefix: https://youtu.be/ID?t=" in out
     assert "[00:00]" in out and "parts:" not in out
     assert json.loads((tmp_path / "meta.json").read_text())["parts"] == []
 
@@ -206,7 +206,7 @@ def test_main_uses_cache_on_second_call(monkeypatch, tmp_path, capsys):
     assert tr.main(["https://x/video"]) == 0 and tr.main(["https://x/video"]) == 0
     assert len(calls) == 1  # ikincisi önbellekten
     assert tr.main(["https://x/video", "--fresh"]) == 0 and len(calls) == 2
-    assert capsys.readouterr().out.count("=== SKIMCAST TRANSCRIPT ===") == 3
+    assert capsys.readouterr().out.count("=== TALKLINE TRANSCRIPT ===") == 3
 
 
 def test_main_reports_friendly_error(monkeypatch, tmp_path, capsys):

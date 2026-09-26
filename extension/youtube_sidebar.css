@@ -1,4 +1,4 @@
-/* skimcast (uzantı): YouTube izleme sayfasına enjekte edilen kenar paneli (youtube_sync.js tarafından
+/* Talkline (uzantı): YouTube izleme sayfasına enjekte edilen kenar paneli (youtube_sync.js tarafından
    oluşturuluyor). YouTube'un kendi CSS'ini bozmamak için her şeyi #skimcast-sidebar-panel altında,
    olabildiğince az varsayımla (YouTube'un kendi font/renk sınıflarına bağımlı olmadan) tanımlıyoruz. */
 #skimcast-sidebar-panel {
@@ -100,3 +100,7 @@
 @media (prefers-color-scheme: dark) {
   #skimcast-fallback-btn { background: #fff; color: #0f0f0f; }
 }
+
+/* Oynatıcı kontrol çubuğundaki düğme (sağ alt). Boyutu/hizası YouTube'un kendi .ytp-button sınıfından. */
+#skimcast-player-btn { display: inline-flex; align-items: center; justify-content: center; }
+#skimcast-player-btn svg { display: block; flex-shrink: 0; }

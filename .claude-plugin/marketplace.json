@@ -1,11 +1,11 @@
 {
-  "name": "skimcast",
+  "name": "talkline",
   "owner": {
     "name": "Opporhan"
   },
   "plugins": [
     {
-      "name": "skimcast",
+      "name": "talkline",
       "source": "./",
       "description": "Herhangi bir video, podcast veya makale linkinden transcript çıkarıp zaman damgalı, kaliteli özet yazar. Ücretsiz."
     }

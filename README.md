@@ -1,9 +1,9 @@
-# skimcast
+# Talkline
 
 **Paste a link, get a timestamped summary.** A [Claude Code](https://claude.com/claude-code) plugin that pulls the transcript from a YouTube video, podcast, web video or article and summarizes it — no API keys, no n8n, no extra cost.
 
 ```
-/skimcast:summarize https://www.youtube.com/watch?v=rb7TVW77ZCs
+/talkline:summarize https://www.youtube.com/watch?v=rb7TVW77ZCs
 ```
 
 → a general summary followed by a minute-by-minute breakdown with **clickable `[mm:ss]` links**. A 4-minute video takes ~20 s; a 1.5-hour podcast ~40 s. See real outputs: [YouTube example](docs/example-youtube.md) · [90-minute podcast example](docs/example-podcast.md).
@@ -11,8 +11,8 @@
 ## Install
 
 ```
-/plugin marketplace add Opporhan/skimcast
-/plugin install skimcast@skimcast
+/plugin marketplace add Opporhan/talkline
+/plugin install talkline@talkline
 ```
 
 The first run installs its own dependencies into a private virtualenv (`~/.cache/skimcast`, ~1 min, once). Your system Python is never touched. Needs Python 3.10+ (tested on 3.12 and 3.14).
@@ -33,7 +33,7 @@ Speech-to-text runs **on your machine** and is only used when no ready-made tran
 
 ## Use it in Claude Desktop (no terminal, no VS Code)
 
-skimcast also ships an [MCP](https://modelcontextprotocol.io) server, so you can paste a link into the Claude desktop app and ask for a summary. Claude writes the summary itself — still no API key.
+Talkline also ships an [MCP](https://modelcontextprotocol.io) server, so you can paste a link into the Claude desktop app and ask for a summary. Claude writes the summary itself — still no API key.
 
 1. Install Python 3.10+ if you don't have it, then on GitHub click **Code → Download ZIP** and unzip it somewhere permanent.
 2. In Claude Desktop open **Settings → Developer → Edit Config** and add (use the real path; on Windows use `python` instead of `python3`):
@@ -41,9 +41,9 @@ skimcast also ships an [MCP](https://modelcontextprotocol.io) server, so you can
 ```json
 {
   "mcpServers": {
-    "skimcast": {
+    "talkline": {
       "command": "python3",
-      "args": ["/path/to/skimcast/skills/summarize/mcp_server.py"]
+      "args": ["/path/to/talkline/skills/summarize/mcp_server.py"]
     }
   }
 }
@@ -62,18 +62,18 @@ Prints the transcript as `[mm:ss] text` blocks (long ones are split into part fi
 ## What it can't do (honestly)
 
 - **DRM / login-only content** — Spotify, Netflix, private or region-locked videos. Use the podcast's Apple Podcasts or RSS link instead of Spotify.
-- **Sites yt-dlp can't parse** (it breaks sometimes — e.g. TED at the time of writing). skimcast falls back to the page text and labels it *"this is NOT the video's transcript"*.
+- **Sites yt-dlp can't parse** (it breaks sometimes — e.g. TED at the time of writing). Talkline falls back to the page text and labels it *"this is NOT the video's transcript"*.
 - YouTube may block requests from cloud/VPN IPs; run it on your own machine.
 - "Free" means no extra API key or bill; the summarizing is done by your own Claude Code session and counts toward your plan's usage.
 - Please respect the terms of the sites you read from; this is meant for personal use.
 
 ## How it compares
 
-Several Claude Code skills already do "link → summary" ([audio-tldr-skill](https://github.com/AugustusW/audio-tldr-skill), [claude-video](https://github.com/bradautomates/claude-video), [youtube-transcriber](https://github.com/lifesized/youtube-transcriber) and others). skimcast's angle is to be **one small, dependable path for every kind of link** — including podcasts with ready transcripts and Apple Podcasts links — with a private auto-setup, clear failure messages, and summaries that always carry timestamps and say how trustworthy the source text is.
+Several Claude Code skills already do "link → summary" ([audio-tldr-skill](https://github.com/AugustusW/audio-tldr-skill), [claude-video](https://github.com/bradautomates/claude-video), [youtube-transcriber](https://github.com/lifesized/youtube-transcriber) and others). Talkline's angle is to be **one small, dependable path for every kind of link** — including podcasts with ready transcripts and Apple Podcasts links — with a private auto-setup, clear failure messages, and summaries that always carry timestamps and say how trustworthy the source text is.
 
 ## Browser extension
 
-`extension/` is a separate, self-contained product in this repo: a Chrome/Edge extension that turns any YouTube video, podcast episode, or article into a searchable, click-to-jump transcript — no summary, no LLM, no API key. Everything (library, notes, translation, text-to-speech) runs on your device; the one exception is fetching a YouTube video's transcript itself, which goes through a small hosted server (see `server/`) because YouTube blocks that request from a browser — no local install needed on your side.
+`extension/` is a separate, self-contained product in this repo: a Chrome/Edge extension that turns any YouTube video, podcast episode, or article into a searchable, click-to-jump transcript — no summary, no LLM, no API key. Everything (fetching, library, notes, text-to-speech) runs in your browser — no server of ours, no local install.
 
 ```
 Right-click a video (or paste a link in the popup) → transcript opens in a new tab
@@ -84,7 +84,6 @@ Right-click a video (or paste a link in the popup) → transcript opens in a new
 - **Read aloud** — on-device text-to-speech, per-paragraph or from any line, with word-by-word highlighting as it speaks.
 - **Personal library** — every transcript you fetch is saved locally; organize videos, favorite lines, and free-standing notes into folders (with your own icon or uploaded image), star favorite lines, search across everything you've ever fetched. A "remember this?" card occasionally resurfaces an old favorite.
 - **Notes** — one unified notes system: jot a note about a whole video, about one specific line, or completely free-standing — all in the same "My Notes" tab, each with its own icon.
-- **Translate on-device** — Chrome's built-in Translator API translates the transcript into any of 9 languages, fully offline, no quota.
 - **Export** — copy, download as `.txt` or a real `.pdf` (Turkish/accented characters render correctly via an embedded font), or export a folder as Markdown for Obsidian/Notion.
 - **Back up** — one file holds your whole library (folders, favorites, videos, notes); restore it on another machine.
 - **UI language** — switch the extension's own interface between Turkish and English, independent of your browser's language.
@@ -92,7 +91,7 @@ Right-click a video (or paste a link in the popup) → transcript opens in a new
 ### Install (unpacked, not on a store)
 
 1. Open `chrome://extensions` (or `edge://extensions`), enable **Developer mode**, click **Load unpacked**, select the `extension/` folder.
-2. Click the toolbar icon on any YouTube/podcast/article page, or right-click the page and choose **skimcast: Get Transcript**.
+2. Click the toolbar icon on any YouTube/podcast/article page, or right-click the page and choose **Talkline: Get Transcript**.
 
 No Python, no local install — just load the folder. This is a separate codebase from the Claude Code plugin above — the extension never calls Claude or any LLM; the plugin never touches the browser.
 

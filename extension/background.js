@@ -1,8 +1,6 @@
-// skimcast (uzantı): background.js — transcript'i toplar, arşive kaydeder, görüntüleyici sekmesini açar.
-// Podcast RSS / Apple Podcasts / web sayfası: doğrudan JS fetch ile (aşağıda). YouTube ise tarayıcıdan
-// artık erişilemiyor (bkz. fromYoutube) — bunun için skills/summarize/native_host.py'ye (Python,
-// youtube_transcript_api) native messaging ile bağlanıyoruz; sürekli çalışan bir sunucu değil, Chrome
-// anlık olarak başlatıp kapatıyor.
+// Talkline (uzantı): background.js — transcript'i toplar, arşive kaydeder, görüntüleyici sekmesini açar.
+// Podcast RSS / Apple Podcasts / web sayfası: doğrudan JS fetch ile (aşağıda). YouTube
+// de doğrudan tarayıcıdan (InnerTube ANDROID istemcisi, bkz. fromYoutubeDirect).
 //
 // Eskiden burada bir de Groq'a (ücretsiz LLM API'si) istek atıp özet çıkarma adımı vardı. Bir gece
 // boyunca kota/model/hız-sınırı sorunlarıyla uğraştıktan sonra (bkz. git geçmişi) bilinçli olarak
@@ -43,7 +41,7 @@ function toBlocks(segments) {
 async function fetchText(url) {
   let res;
   try {
-    res = await fetch(url, { headers: { "User-Agent": "skimcast-extension/0.1" } });
+    res = await fetch(url, { headers: { "User-Agent": "talkline-extension/0.1" } });
   } catch (e) {
     throw new SkimError(`Bağlantı kurulamadı (${url.slice(0, 60)}…): ${e.message}`);
   }
@@ -51,7 +49,7 @@ async function fetchText(url) {
   return res.text();
 }
 
-// ---------------------------------------------------------------- YouTube (native messaging üzerinden)
+// ---------------------------------------------------------------- YouTube
 const YT_ID_RE = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/|v\/))([\w-]{11})/;
 
 function youtubeId(url) {
@@ -59,31 +57,136 @@ function youtubeId(url) {
   return m ? m[1] : null;
 }
 
-// YouTube'un caption/get_transcript API'leri artık tarayıcıdan (gerçek, oturum açmış kullanıcının
-// imzasıyla bile) çalışmıyor: bir "proof of origin" (pot) token istiyor, bu da yalnızca gerçek, işletim
-// sistemi seviyesinde bir fare/klavye etkileşimiyle üretiliyor — bir uzantının kod olarak üretemeyeceği
-// bir şey (denendi, doğrulandı: gerçek tıklama çalışıyor, .click() ve chrome.debugger ile üretilen
-// "tıklamalar" çalışmıyor). Bunu atlatmaya çalışmak (sahte-ama-güvenilir olay üretmek) yapmayacağımız bir
-// şey. Bunun yerine YouTube'u bu korumaya hiç takılmayan gerçek bir Python süreciyle (youtube_transcript_api)
-// okuyoruz — ama artık kullanıcının KENDİ bilgisayarında değil, barındırılan küçük bir sunucuda (bkz.
-// server/main.py): eskiden bunu yerel bir "native messaging host" (Python kurulumu + tek seferlik kayıt
-// betiği) yapıyordu, sıradan kullanıcılar (öğrenci/öğretmen) için bu engel kabul edilemez bulunduğundan
-// kaldırıldı. Bu, projenin "tamamen cihazda" mimarisinden TEK istisna: yalnızca YouTube transcript'inin
-// kendisi bu sunucudan geçiyor, hiçbir şey saklanmıyor. Sunucu kodu ve barındırma notları: server/.
-const SERVER_URL = "https://skimcast-server-369991083329.europe-west1.run.app";
+// YouTube'un WEB istemcisinin caption/get_transcript API'leri tarayıcıdan çalışmıyor: bir "proof of
+// origin" (pot) token istiyor, bu da yalnızca gerçek, işletim sistemi seviyesinde bir fare/klavye
+// etkileşimiyle üretiliyor (denendi: .click() / chrome.debugger ile üretilen "tıklamalar" çalışmıyor;
+// bunu atlatmaya çalışmak yapmayacağımız bir şey).
+//
+// Asıl yol (fromYoutubeDirect): youtube_transcript_api'nin yaptığının aynısı — InnerTube "player"
+// uç noktasına ANDROID istemcisi olarak sorup altyazı listesini alıyor, altyazı XML'ini doğrudan
+// indiriyoruz. Bu yol pot token istemiyor ve istek kullanıcının KENDİ IP'sinden gidiyor. Eskiden bunu
+// barındırılan bir sunucu (Cloud Run) yapıyordu; YouTube veri merkezi IP'lerini "Sign in to confirm
+// you're not a bot" diyerek engellediği için kaldırıldı (bkz. git geçmişi).
+const INNERTUBE_CLIENT = { clientName: "ANDROID", clientVersion: "20.10.38" };
+
+// transcript.py'deki _pick_track ile aynı: elle yazılmış > otomatik; aynı grupta langs sırası kazanır.
+function pickCaptionTrack(tracks, langs) {
+  const base = (t) => t.languageCode.split("-")[0];
+  const rank = (t) => (langs.includes(base(t)) ? langs.indexOf(base(t)) : langs.length);
+  const auto = (t) => t.kind === "asr";
+  for (const pred of [
+    (t) => !auto(t) && langs.includes(base(t)),
+    (t) => !auto(t),
+    (t) => auto(t) && langs.includes(base(t)),
+    () => true,
+  ]) {
+    const found = tracks.filter(pred);
+    if (found.length) return found.reduce((a, b) => (rank(b) < rank(a) ? b : a));
+  }
+  return null;
+}
+
+function decodeEntities(s) {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e) => {
+    const k = e.toLowerCase();
+    if (k[0] === "#") return String.fromCodePoint(k[1] === "x" ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10));
+    return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" }[k];
+  });
+}
+
+// YouTube'un altyazı XML'i: <text start="5.3" dur="5.6">metin</text>. Metin bazen çift kaçışlı
+// geliyor ("&amp;#39;"), bu yüzden iki kez çözüyoruz; içteki <font> gibi etiketler atılıyor.
+function parseCaptionXml(xml) {
+  const segs = [];
+  for (const m of xml.matchAll(/<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g)) {
+    const text = decodeEntities(decodeEntities(m[2])).replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+    if (text) segs.push([parseFloat(m[1]), text]);
+  }
+  return segs;
+}
+
+// transcript.py'nin to_blocks()'uyla aynı ~30sn birleştirme: gösterim blokları + her bloğun içine
+// giren ham segmentler (videoyla kelime kelime senkron takip için).
+function blocksWithWords(segments) {
+  const blocks = [];
+  let start = null, bufText = [], bufWords = [];
+  for (const [t, raw] of segments) {
+    const text = String(raw).replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    if (start === null) start = t;
+    bufText.push(text);
+    bufWords.push([t, text]);
+    const span = t - start;
+    if (span >= BLOCK_SECONDS && (/[.!?…]$/.test(text) || span >= 2 * BLOCK_SECONDS)) {
+      blocks.push({ sec: start, text: bufText.join(" "), words: bufWords });
+      start = null; bufText = []; bufWords = [];
+    }
+  }
+  if (bufText.length) blocks.push({ sec: start, text: bufText.join(" "), words: bufWords });
+  return blocks;
+}
+
+// YouTube, player uç noktasına "Origin: chrome-extension://…" ile gelen isteği 403 ile reddediyor
+// (denendi: başlıksız ya da youtube.com origin'iyle 200). Bu yüzden yalnızca sekme dışı (uzantının
+// kendi) isteklerinde Origin'i youtube.com yapan bir oturum kuralı kuruyoruz. Oturum kuralları tarayıcı
+// kapanınca silindiğinden her istekten önce (idempotent) yeniden yazılıyor.
+async function ensureYoutubeOriginRule() {
+  await chrome.declarativeNetRequest.updateSessionRules({
+    removeRuleIds: [1],
+    addRules: [{
+      id: 1,
+      action: {
+        type: "modifyHeaders",
+        requestHeaders: [{ header: "origin", operation: "set", value: "https://www.youtube.com" }],
+      },
+      condition: {
+        urlFilter: "||www.youtube.com/youtubei/v1/player",
+        tabIds: [chrome.tabs.TAB_ID_NONE],
+        resourceTypes: ["xmlhttprequest", "other"],
+      },
+    }],
+  });
+}
+
+async function fromYoutubeDirect(videoId, langs) {
+  await ensureYoutubeOriginRule();
+  const res = await fetch("https://www.youtube.com/youtubei/v1/player", {
+    method: "POST",
+    credentials: "omit",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ context: { client: INNERTUBE_CLIENT }, videoId }),
+  });
+  if (!res.ok) throw new Error(`YouTube HTTP ${res.status}`);
+  const player = await res.json();
+  const status = player.playabilityStatus?.status;
+  if (status && status !== "OK") {
+    throw new Error(`YouTube: ${player.playabilityStatus.reason || status}`);
+  }
+  const tracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+  const track = pickCaptionTrack(tracks, langs);
+  if (!track) throw new SkimError("Bu videoda altyazı yok.");
+  const segs = parseCaptionXml(await fetchText(track.baseUrl.replace("&fmt=srv3", "")));
+  if (!segs.length) throw new Error("Altyazı boş geldi.");
+  const blocks = blocksWithWords(segs);
+  const kind = track.kind === "asr" ? "otomatik" : "elle";
+  const seconds = Number(player.videoDetails?.lengthSeconds) || segs[segs.length - 1][0];
+  const meta = {
+    title: player.videoDetails?.title || "",
+    method: `youtube-altyazı (${track.languageCode}, ${kind})`,
+    duration: fmtTime(seconds),
+    link_prefix: `https://youtu.be/${videoId}?t=`,
+  };
+  const text = blocks.map((b) => `[${fmtTime(b.sec)}] ${b.text}`).join("\n");
+  return { native: true, meta, text, rawBlocks: blocks };
+}
 
 async function fromYoutube(url, langs) {
-  let res;
   try {
-    res = await fetch(`${SERVER_URL}/transcript?url=${encodeURIComponent(url)}&lang=${encodeURIComponent(langs.join(","))}`);
+    return await fromYoutubeDirect(youtubeId(url), langs);
   } catch (e) {
-    throw new SkimError(`Sunucuya bağlanılamadı: ${e.message}`);
+    if (e instanceof SkimError) throw e;
+    throw new SkimError(`YouTube altyazısı alınamadı: ${e.message}`);
   }
-  const response = await res.json().catch(() => null);
-  if (!response || !response.ok) {
-    throw new SkimError(response?.error || `Sunucudan yanıt alınamadı (HTTP ${res.status}).`);
-  }
-  return { native: true, meta: response.meta, text: response.text, rawBlocks: response.blocks };
 }
 
 // ---------------------------------------------------------------- YouTube bölümleri (chapters)
@@ -197,7 +300,7 @@ async function fromFeed(feedUrl, audioHint, titleHint) {
     } catch { /* bu etiket olmadı, sıradakini dene */ }
   }
   throw new SkimError("Bu bölümde hazır transcript etiketi yok. (Uzantı sürümü sesi deşifre edemez; " +
-    "Claude Code + skimcast eklentisi bunu whisper ile yapabilir.)");
+    "Claude Code + Talkline eklentisi bunu whisper ile yapabilir.)");
 }
 
 async function fromApple(url) {
@@ -277,7 +380,7 @@ function parseTimeLabel(label) {
 }
 
 // Otomatik altyazılar (YouTube/whisper) konuşma olmayan anları "(müzik)", "[Music]", "(alkış)" gibi
-// parantez/köşeli parantez içinde işaretliyor — bunlar gerçek konuşma değil, arama/çeviri/alıntıda
+// parantez/köşeli parantez içinde işaretliyor — bunlar gerçek konuşma değil, arama/alıntıda
 // gürültü yaratıyor. Bilinen etiketleri (TR+EN) satırdan siler; satırın tamamı bir etiketten ibaretse
 // (ör. sadece "(müzik)") blok tamamen atlanır.
 const NON_SPEECH_RE = /[([](müzik|music|gülüşme\w*|laugh\w*|alkış\w*|applause|gürültü\w*|noise|sessizlik|silence|anlaşılamıyor|inaudible|crosstalk|arka plan( müziği| sesi)?|background( music| noise)?)[)\]]/gi;
@@ -309,7 +412,7 @@ const ARCHIVE_INDEX_KEY = "skimcastArchiveIndex";
 // Arşiv iki parçada tutulur: her kayıt kendi anahtarında (tam metin, olası büyük), ve hafif bir dizin
 // (skimcastArchiveIndex) sadece kütüphane sayfasını hızlıca doldurmak için. Aynı video/link tekrar
 // getirilirse (stableId aynı çıkar) kayıt GÜNCELLENİR — ama kullanıcının o kayda eklediği şeyler
-// (favoriler, etiketler, not, sabitleme, çeviriler) korunur, sadece transcript/meta tazelenir.
+// (favoriler, etiketler, not, sabitleme) korunur, sadece transcript/meta tazelenir.
 async function saveToArchive(id, url, meta, blocks) {
   const prevKey = archiveKey(id);
   const { [prevKey]: prev } = await chrome.storage.local.get(prevKey);
@@ -329,8 +432,8 @@ async function saveToArchive(id, url, meta, blocks) {
 // ortasında Chrome tarafından sonlandırılması bütün geceyi almıştı) — transcript alma saniyeler
 // sürdüğü için servis çalışanının ömrüyle ilgili bir risk de yok.
 // Hem popup'tan (mesajla) hem sağ tık menüsünden çağrıldığı için ortak bir fonksiyona çıkarıldı.
-// native_host.py (YouTube), gösterim bloğuna (~30sn) ek olarak İÇİNE giren HAM, ince taneli altyazı
-// parçalarını da yolluyor (block.words) — kelime kelime videoyla senkron takip bunları kullanıyor.
+// YouTube yolu (fromYoutubeDirect), gösterim bloğuna (~30sn) ek olarak İÇİNE giren HAM, ince taneli
+// altyazı parçalarını da veriyor (block.words) — kelime kelime videoyla senkron takip bunları kullanıyor.
 // parseTimedBlocks() gibi "(müzik)" vb. konuşma-olmayan etiketleri hem bloğun hem her kelime grubunun
 // metninden temizliyoruz; tamamen etiketten ibaret olan kelime grupları (ya da bloklar) atlanıyor.
 function blocksFromNative(rawBlocks) {
@@ -389,44 +492,6 @@ async function fetchAndOpen(url) {
   chrome.tabs.create({ url: chrome.runtime.getURL(`viewer.html?id=${encodeURIComponent(id)}`) });
   return meta;
 }
-
-// ---------------------------------------------------------------- elle transcript ekleme
-// skimcast'in otomatik çekemediği içerikler için (altyazısız video, üyelik gerektiren makale, elle
-// deşifre edilmiş bir kayıt): kullanıcı popup'tan kendi metnini yapıştırır. "[mm:ss]" ile başlayan
-// satırlar varsa (parseTimedBlocks zaten bunu tanıyor) zaman damgalı transcript gibi davranır — tıkla-
-// git çalışmaz (kaynak video/link yok) ama arama/favori/çeviri/sesli okuma hepsi normal çalışır. Yoksa
-// boş satırla ayrılmış her paragraf kendi bloğu olur.
-function textToManualBlocks(text) {
-  const hasTimestamps = /^\s*\[\d{1,2}(?::\d{2}){1,2}\]/m.test(text);
-  if (hasTimestamps) return parseTimedBlocks(text);
-  const paragraphs = text.split(/\n{2,}/).map((p) => p.replace(/\s+/g, " ").trim()).filter(Boolean);
-  return parseTimedBlocks(paragraphs.join("\n"));
-}
-
-async function addManual(title, text) {
-  const blocks = textToManualBlocks(text);
-  if (!blocks.length) throw new SkimError("Not boş olamaz.");
-  const meta = { title: title?.trim() || "(başlıksız)", method: "elle eklendi", duration: "", linkPrefix: "" };
-  // Aynı başlık/metinle tekrar eklense bile önceki kaydın üzerine YAZMASIN diye zaman damgası da hash'e
-  // dahil — her "elle ekle" gerçekten yeni, bağımsız bir arşiv kaydı oluşturuyor.
-  const id = `manual:${hashString(`${meta.title}|${text.slice(0, 500)}|${Date.now()}`)}`;
-  await saveToArchive(id, "", meta, blocks);
-  return { id, meta };
-}
-
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.action !== "addManual") return;
-  (async () => {
-    try {
-      const { id } = await addManual(msg.title, msg.text);
-      chrome.tabs.create({ url: chrome.runtime.getURL(`viewer.html?id=${encodeURIComponent(id)}`) });
-      sendResponse({ ok: true });
-    } catch (e) {
-      sendResponse({ ok: false, error: e instanceof SkimError ? e.message : `Beklenmeyen hata: ${e.message || e}` });
-    }
-  })();
-  return true;
-});
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.action !== "fetch") return;
@@ -496,9 +561,9 @@ async function contextMenuTitle() {
   try {
     const res = await fetch(chrome.runtime.getURL(`_locales/${lang}/messages.json`));
     const data = await res.json();
-    return data.context_menu_fetch?.message || "skimcast: Get Transcript";
+    return data.context_menu_fetch?.message || "Talkline: Get Transcript";
   } catch {
-    return "skimcast: Get Transcript";
+    return "Talkline: Get Transcript";
   }
 }
 
@@ -523,12 +588,12 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
     const meta = await fetchAndOpen(url);
     chrome.notifications.create({
       type: "basic", iconUrl: "icons/icon128.png",
-      title: "skimcast", message: meta.title || "Transcript hazır.",
+      title: "Talkline", message: meta.title || "Transcript hazır.",
     });
   } catch (e) {
     chrome.notifications.create({
       type: "basic", iconUrl: "icons/icon128.png",
-      title: "skimcast", message: e instanceof SkimError ? e.message : `Beklenmeyen hata: ${e.message || e}`,
+      title: "Talkline", message: e instanceof SkimError ? e.message : `Beklenmeyen hata: ${e.message || e}`,
     });
   }
 });

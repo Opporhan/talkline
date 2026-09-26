@@ -1,9 +1,9 @@
 {
   "ext_name": {
-    "message": "skimcast"
+    "message": "Talkline"
   },
   "context_menu_fetch": {
-    "message": "skimcast: Get Transcript"
+    "message": "Talkline: Get Transcript"
   },
   "sidebar_collapse_hint": {
     "message": "Collapse"
@@ -15,10 +15,10 @@
     "message": "YouTube's page layout changed and the sidebar panel couldn't attach — click to open the transcript in a new tab instead."
   },
   "ext_description": {
-    "message": "Paste a link, get a timestamped transcript — searchable, click-to-jump, ad-skip. YouTube, podcasts, articles. Fully local, no API calls."
+    "message": "Paste a link, get a timestamped transcript: search, click-to-jump, listen, save. YouTube, podcasts, articles. No account, no server."
   },
   "popup_title": {
-    "message": "skimcast"
+    "message": "Talkline"
   },
   "url_label": {
     "message": "Link"
@@ -49,27 +49,6 @@
   },
   "library_btn": {
     "message": "Library"
-  },
-  "manual_add_toggle": {
-    "message": "Add transcript manually"
-  },
-  "manual_title_label": {
-    "message": "Title"
-  },
-  "manual_title_placeholder": {
-    "message": "e.g. video/episode title"
-  },
-  "manual_text_label": {
-    "message": "Text"
-  },
-  "manual_text_placeholder": {
-    "message": "Paste your text — one paragraph per blank-line-separated block, or lines starting with [mm:ss] for timestamps…"
-  },
-  "manual_save_btn": {
-    "message": "Save"
-  },
-  "manual_error_empty": {
-    "message": "Paste some text first."
   },
   "library_link": {
     "message": "← Library"
@@ -302,38 +281,8 @@
   "fav_removed": {
     "message": "Removed from favorites"
   },
-  "section_translate": {
-    "message": "Translate"
-  },
   "section_tts": {
     "message": "Read Aloud"
-  },
-  "translate_btn": {
-    "message": "Translate"
-  },
-  "translate_original_btn": {
-    "message": "Show Original"
-  },
-  "translate_preparing": {
-    "message": "Preparing…"
-  },
-  "translate_downloading": {
-    "message": "Downloading language pack…"
-  },
-  "translate_progress": {
-    "message": "Translating…"
-  },
-  "translate_done": {
-    "message": "Translated."
-  },
-  "translate_error": {
-    "message": "Translation error:"
-  },
-  "translate_no_source": {
-    "message": "Couldn't detect the source language; translation isn't available."
-  },
-  "translate_unsupported_device": {
-    "message": "On-device translation isn't supported on this browser/device (needs Chrome 138+ on Windows/macOS/Linux, with enough RAM/storage/GPU). This is permanent — it won't work for any video here."
   },
   "tts_btn": {
     "message": "Read Aloud"
@@ -367,5 +316,8 @@
   },
   "resume_badge": {
     "message": "Continue"
+  },
+  "player_btn_hint": {
+    "message": "Show/hide the Talkline transcript"
   }
 }
