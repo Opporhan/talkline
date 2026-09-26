@@ -1,4 +1,4 @@
-// skimcast (uzantı): lang.js — uygulamanın arayüz dilini (popup, görüntüleyici, kütüphane — hepsi)
+// Talkline (uzantı): lang.js — uygulamanın arayüz dilini (popup, görüntüleyici, kütüphane — hepsi)
 // tarayıcı dilinden BAĞIMSIZ olarak değiştirebilmek için. chrome.i18n.getMessage() her zaman tarayıcının
 // kendi diline bakıyor, kullanıcı başına değiştirilemiyor — bu yüzden ilgili _locales/<dil>/messages.json
 // dosyasını kendimiz fetch edip t() bunun üzerinden çalışıyor. Tercih chrome.storage.local'de tek bir

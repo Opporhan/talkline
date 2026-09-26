@@ -1,4 +1,4 @@
-// skimcast (uzantı): theme.js — açık/koyu temayı sayfalar arasında ortak uygular. popup, viewer ve
+// Talkline (uzantı): theme.js — açık/koyu temayı sayfalar arasında ortak uygular. popup, viewer ve
 // library sayfalarının hepsi bunu yükler; chrome.storage.local'deki tek bir tercih (skimcastTheme)
 // hepsinde aynı anda geçerli olur. İlk açılışta sistem tercihine göre başlar, sonrasında düğmeyle
 // elle değiştirilen sabit bir seçimdir (otomatik sistem takibi yok — bilinçli olarak sade tutuldu).

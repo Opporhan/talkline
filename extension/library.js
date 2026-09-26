@@ -1,4 +1,4 @@
-// skimcast (uzantı): library.js — arşivlenmiş tüm transcript'lerin listesi, aralarında tam metin arama,
+// Talkline (uzantı): library.js — arşivlenmiş tüm transcript'lerin listesi, aralarında tam metin arama,
 // "Dosyalarım" bölümünde klasörlere ayırma (ör. "Yapay Zeka", "Felsefe"; özel ikon/görsel, yeniden
 // adlandırma, silme), sabitleme, sıralama ve tüm videolardaki favori (yıldızlanmış) anların tek bir
 // yerde toplandığı "Favoriler" görünümü.
@@ -745,7 +745,7 @@ async function init() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `skimcast-yedek-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `talkline-yedek-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast(t("backup_done_toast"));

@@ -1,7 +1,7 @@
-// skimcast (uzantı): youtube_sync.js — YouTube izleme sayfasına enjekte edilen içerik betiği. İki işi var:
+// Talkline (uzantı): youtube_sync.js — YouTube izleme sayfasına enjekte edilen içerik betiği. İki işi var:
 // 1) Oynatılan videonun kimliğini ve o anki oynatma zamanını (throttle'lanmış) arka plana (background.js)
-//    bildirmek — "videoyla senkron takip" (skimcast sekmede "🔗" açıkken transcript kendiliğinden kayar).
-// 2) Sayfanın sağ sütununa (normalde "sıradaki video" listesinin olduğu yer) tam boy bir skimcast paneli
+//    bildirmek — "videoyla senkron takip" (Talkline sekmede "🔗" açıkken transcript kendiliğinden kayar).
+// 2) Sayfanın sağ sütununa (normalde "sıradaki video" listesinin olduğu yer) tam boy bir Talkline paneli
 //    yerleştirmek — transcript'i ayrı bir sekmede değil, videonun hemen yanında gösterir. Transcript arşivde
 //    yoksa "Transcript'i Getir" düğmesi çıkar; varsa panel viewer.html'i bir iframe içinde yükler.
 
@@ -42,7 +42,20 @@ function attach() {
   const videoId = currentVideoId();
   const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
   if (!videoId || !video) return;
-  if (video === attachedVideo && videoId === attachedId) return;
+  ensurePlayerButton();
+  if (video === attachedVideo && videoId === attachedId) {
+    // "Bazen sağda panel yok / boş" sorunu: YouTube sayfayı kendi içinde yeniden çizince paneli
+    // silebiliyor, ya da ilk yüklemede panel iskeleti kurulup gövdesi boş kalabiliyor (tarayıcıda
+    // görüldü). Video aynı kalsa bile her saniye kontrol edip eksikse/boşsa yeniden kuruyoruz.
+    const panel = document.getElementById(PANEL_ID);
+    const missing = !panel && !document.getElementById(FALLBACK_ID) && findSecondaryColumn();
+    const empty = panel && !panel.querySelector(".skimcast-sb-body")?.firstChild;
+    if (missing || empty) {
+      panelVideoId = null;
+      ensureSidebarPanel(videoId);
+    }
+    return;
+  }
   if (attachedVideo && attachedVideo._skimcastHandler) {
     attachedVideo.removeEventListener("timeupdate", attachedVideo._skimcastHandler);
   }
@@ -101,7 +114,7 @@ function buildFallbackButton(videoId) {
   if (document.getElementById(FALLBACK_ID) || document.getElementById(PANEL_ID)) return;
   const btn = document.createElement("button");
   btn.id = FALLBACK_ID;
-  btn.textContent = "📝 skimcast";
+  btn.textContent = "📝 Talkline";
   tt("sidebar_fallback_hint", "YouTube's page layout changed and the sidebar panel couldn't attach — click to open the transcript in a new tab instead.")
     .then((hint) => { btn.title = hint; });
   btn.addEventListener("click", async () => {
@@ -127,7 +140,7 @@ async function buildPanelShell() {
   panel.id = PANEL_ID;
   panel.innerHTML = `
     <div class="skimcast-sb-header">
-      <span>skimcast</span>
+      <span>Talkline</span>
       <button type="button" class="skimcast-sb-toggle" title="${escapeAttr(await tt("sidebar_collapse_hint", "Collapse"))}">▾</button>
     </div>
     <div class="skimcast-sb-body"></div>
@@ -169,10 +182,10 @@ async function renderCta(body, videoId) {
 
 function renderIframe(body, videoId) {
   const src = chrome.runtime.getURL(`viewer.html?id=${encodeURIComponent(`yt:${videoId}`)}`);
-  // "allow" olmadan Chrome'un cihaz üzerindeki çeviri/dil-tespit API'leri (Translator/LanguageDetector)
-  // bir iframe içinde varsayılan olarak kapalı geliyor (Permissions Policy) — "kaynak dil tespit
-  // edilemedi" hatasının sebebi buydu. clipboard-write kopyala düğmesi için zaten gerekliydi.
-  body.innerHTML = `<iframe id="${SIDEBAR_IFRAME_ID}" src="${src}" allow="clipboard-write; translator; language-detector"></iframe>`;
+  // "allow" olmadan Chrome'un cihaz üzerindeki dil-tespit API'si (LanguageDetector — sesli okumanın
+  // doğru sesi seçmesi için) bir iframe içinde varsayılan olarak kapalı geliyor (Permissions Policy).
+  // clipboard-write kopyala düğmesi için gerekli.
+  body.innerHTML = `<iframe id="${SIDEBAR_IFRAME_ID}" src="${src}" allow="clipboard-write; language-detector"></iframe>`;
 }
 
 // Video değiştiğinde (SPA navigasyonu) paneli o videoya göre yeniden kuruyoruz: arşivde zaten varsa
@@ -196,8 +209,13 @@ async function ensureSidebarPanel(videoId, attempt = 0) {
       return;
     }
     document.getElementById(FALLBACK_ID)?.remove(); // sütun nihayet bulunduysa yedek düğmeye artık gerek yok
-    panel = await buildPanelShell();
-    column.insertBefore(panel, column.firstChild);
+    const shell = await buildPanelShell();
+    // buildPanelShell beklerken başka bir çağrı paneli çoktan eklemiş olabilir — iki panel olmasın.
+    panel = document.getElementById(PANEL_ID);
+    if (!panel) {
+      panel = shell;
+      column.insertBefore(panel, column.firstChild);
+    }
   }
 
   const body = panel.querySelector(".skimcast-sb-body");
@@ -205,6 +223,57 @@ async function ensureSidebarPanel(videoId, attempt = 0) {
   if (panelVideoId !== videoId) return; // bu sırada video tekrar değişmiş olabilir
   if (entry) renderIframe(body, videoId);
   else await renderCta(body, videoId);
+}
+
+// ------------------------------------------------------------ oynatıcı düğmesi
+// Videonun kendi kontrol çubuğunda (sağ alt, altyazı/ayarlar düğmelerinin yanı) bir Talkline düğmesi.
+// Panel sağ sütunda görünüyorsa onu açıp/kapatıyor; sağ sütun görünmüyorsa (dar pencere, sinema modu —
+// YouTube sütunu gizliyor ya da videonun altına taşıyor) transcript'i yeni sekmede açıyor.
+const PLAYER_BTN_ID = "skimcast-player-btn";
+
+function ensurePlayerButton() {
+  if (document.getElementById(PLAYER_BTN_ID)) return;
+  // YouTube'un güncel oynatıcısında sağ kontroller iki gruba ayrılmış; düğmeyi altyazı/ayarların olduğu
+  // sol gruba koyuyoruz (tarayıcıda doğrulandı). Eski düzende grup yoksa doğrudan sağ kontrollere.
+  const controls = document.querySelector(".html5-video-player .ytp-right-controls-left")
+    || document.querySelector(".html5-video-player .ytp-right-controls");
+  if (!controls) return;
+  const btn = document.createElement("button");
+  btn.id = PLAYER_BTN_ID;
+  btn.className = "ytp-button";
+  // innerHTML yerine DOM API: YouTube sayfası "Trusted Types" zorunlu kılıyor (tarayıcıda görüldü).
+  const NS = "http://www.w3.org/2000/svg";
+  // Material Symbols "article" (Apache 2.0) — YouTube'un yeni oynatıcısındaki 24px çizgi simgelerle aynı
+  // boyut/tarz; CSS düğmenin ortasına yerleştiriyor (youtube_sidebar.css).
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "24");
+  svg.setAttribute("height", "24");
+  const path = document.createElementNS(NS, "path");
+  path.setAttribute("fill", "#fff");
+  path.setAttribute("d", "M7 17h7v-2H7v2zm0-4h10v-2H7v2zm0-4h10V7H7v2zM5 21q-.825 0-1.412-.587Q3 19.825 3 19V5q0-.825.588-1.413Q4.175 3 5 3h14q.825 0 1.413.587Q21 4.175 21 5v14q0 .825-.587 1.413Q19.825 21 19 21Zm0-2h14V5H5v14Z");
+  svg.appendChild(path);
+  btn.appendChild(svg);
+  tt("player_btn_hint", "Talkline transcript").then((hint) => {
+    btn.title = hint;
+    btn.setAttribute("aria-label", hint);
+  });
+  btn.addEventListener("click", async () => {
+    const panel = document.getElementById(PANEL_ID);
+    if (panel && panel.offsetParent !== null) {
+      const wasCollapsed = panel.classList.contains("skimcast-collapsed");
+      panel.querySelector(".skimcast-sb-toggle").click();
+      if (wasCollapsed) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+    try {
+      const res = await chrome.runtime.sendMessage({ action: "fetch", url: location.href });
+      if (!res?.ok) throw new Error(res?.error || "?");
+    } catch (e) {
+      btn.title = String(e?.message || e);
+    }
+  });
+  controls.insertBefore(btn, controls.firstChild);
 }
 
 // Popup'tan ya da sağ tık menüsünden "Transcript'i Getir" tetiklendiğinde (background.js:fetchAndOpen)

@@ -1,6 +1,6 @@
-// skimcast (uzantı): viewer.js — background.js'in arşive kaydettiği transcript'i gösterir. Özet üretmez;
+// Talkline (uzantı): viewer.js — background.js'in arşive kaydettiği transcript'i gösterir. Özet üretmez;
 // zaman damgalı transcript'i arama, tıkla-git, olası reklam tespiti, favori/alıntı, kopyala/indir ve
-// (cihaz üzerinde, ücretsiz/kotasız) çeviri katmanlarıyla sunar. Çeviri hariç hiçbir dış API'ye gitmez.
+// sesli okuma katmanlarıyla sunar. Hiçbir dış API'ye gitmez.
 
 // Tırnak işaretlerini de kaçırıyor (önceki sürüm kaçırmıyordu) — video başlığı, favori metni gibi
 // kullanıcı içeriği bir HTML özniteliğinin (data-id="...", title="..." gibi) içine konduğunda, metinde
@@ -18,8 +18,7 @@ function fmtTime(sec) {
 }
 
 // Kaba, isteğe bağlı bir sezgisel: transcript metninde sponsor/reklam okuması gibi görünen kalıpları
-// arar. Kesin değildir — bu yüzden arayüzde "olası reklam" diye etiketleniyor. Her zaman ORİJİNAL metne
-// bakılır (çeviri sonrası tekrar çalıştırılmaz) çünkü kalıp listesi orijinal dillere göre ayarlı.
+// arar. Kesin değildir — bu yüzden arayüzde "olası reklam" diye etiketleniyor.
 const AD_PATTERNS = [
   /\bsponsor(lu|luk|luğunda|ed)?\b/i,
   /(bu (video|bölüm)\w*|this (video|episode))\s+.{0,40}(sponsorluğunda|tarafından sunul\w*|destekle\w*|is sponsored by|brought to you by)/i,
@@ -54,8 +53,7 @@ function jumpTo(url, sec) {
 // ------------------------------------------------------------ kelime kelime takip (sesli okuma + videoyla senkron)
 // Bir satırın metnini tek tek kelimelere sarıp (span.word) o an "sırada" olan kelimeyi sarıyla vurgulamak
 // için. Bu yapı SADECE o an aktif olan satırda geçici olarak kuruluyor — kalıcı olsaydı arama vurgusu
-// (applyFilters, <mark> ile innerHTML'i değiştiriyor) ve çeviri (applyTexts, textContent'i değiştiriyor)
-// ile çakışırdı. Satır aktif olmaktan çıkınca deactivateWordTracking düz metne geri döndürüyor.
+// (applyFilters, <mark> ile innerHTML'i değiştiriyor) ile çakışırdı. Satır aktif olmaktan çıkınca deactivateWordTracking düz metne geri döndürüyor.
 function wordsHtml(text) {
   let wi = 0;
   return text.split(/(\s+)/).map((tok) => {
@@ -111,96 +109,18 @@ function flashLabel(btn, label) {
   btn._flashTimer = setTimeout(() => { target.textContent = target.dataset.originalLabel; }, 1500);
 }
 
-// ------------------------------------------------------------ çeviri (cihaz üzerinde, Translator API)
-const TRANSLATE_LANGS = [
-  { code: "tr", label: "Türkçe" },
-  { code: "en", label: "English" },
-  { code: "es", label: "Español" },
-  { code: "fr", label: "Français" },
-  { code: "de", label: "Deutsch" },
-  { code: "ja", label: "日本語" },
-  { code: "pt", label: "Português" },
-  { code: "ar", label: "العربية" },
-  { code: "ru", label: "Русский" },
-];
-
-// Bloklar (transcript'in gösterim birimi) ~30-60 saniyelik, genelde birden fazla cümleden oluşan
-// metinler — cihaz üzerindeki çeviri modeline TEK SEFERDE koca bir blok vermek (özellikle sayı, isim
-// gibi ayrıntıları) atlamasına/yanlış söylemesine yol açabiliyor: model uzun girdilerde özetleme
-// eğilimine kayabiliyor. Her CÜMLEYİ ayrı ayrı çevirip birleştirmek, modelin her seferinde küçük, tam
-// bir birim üzerinde çalışmasını sağlıyor — orijinal anlama daha sadık, daha eksiksiz bir çeviri.
-function splitSentences(text) {
-  const parts = text.match(/[^.!?…]+[.!?…]+(?:\s+|$)|[^.!?…]+$/g);
-  return parts ? parts.map((s) => s.trim()).filter(Boolean) : [text];
-}
-
-// Sayılar (özellikle iki tane yakın sayı olunca, ör. "160'tan 180'e") küçük çeviri modeli tarafından
-// "dil bilgisi" gibi işlenip yuvarlanabiliyor/atlanabiliyor — bir sayı gerçek bir kelime değil, OLDUĞU
-// GİBİ kalması gereken bir değer. Çevirmeden önce her sayıyı, modelin "çeviri" diye bir şey yapmayacağı
-// düz bir yer tutucuyla (⟦0⟧, ⟦1⟧…) değiştirip, çeviri bittikten sonra ORİJİNAL sayı metnini (birebir,
-// biçimlendirmesi/ondalığı bozulmadan) geri koyuyoruz — model hiç "görmediği" için değiştiremiyor/atlayamıyor.
-function protectNumbers(text) {
-  const numbers = [];
-  const protectedText = text.replace(/\d[\d.,]*\d|\d/g, (m) => {
-    numbers.push(m);
-    return `⟦${numbers.length - 1}⟧`;
-  });
-  return { protectedText, numbers };
-}
-function restoreNumbers(text, numbers) {
-  return text.replace(/⟦(\d+)⟧/g, (m, idx) => numbers[Number(idx)] ?? m);
-}
-
-// "Birebir tam çeviri" için kaba ama işe yarar bir kalite kapısı: çıktı, kaynağa göre KELİME SAYISI
-// olarak çok kısaysa (%40'ın altı), model muhtemelen bir şeyleri atlayıp özetlemiş demektir. Çok kısa
-// cümlelerde (2 kelime ve altı) bu oran güvenilir değil, kontrol etmiyoruz.
-function isSuspiciouslyShort(sourceText, translatedText) {
-  const srcWords = sourceText.split(/\s+/).filter(Boolean).length;
-  if (srcWords <= 2) return false;
-  const outWords = translatedText.split(/\s+/).filter(Boolean).length;
-  return outWords < srcWords * 0.4;
-}
-
-// Sadece dili DEĞİL, tespit edilemediyse SEBEBİNİ de döndürüyor — "bu videonun dili tespit edilemedi"
-// (içerikle ilgili, tek seferlik bir sorun) ile "bu cihaz/tarayıcı özelliği hiç desteklemiyor" (kalıcı,
-// hiçbir videoda çalışmayacak) birbirinden çok farklı şeyler; kullanıcıya ikisini de aynı belirsiz
-// mesajla göstermek kafa karıştırıyordu. "unsupported" → Translator de aynı altyapıyı (Gemini Nano)
-// kullandığı için o da çalışmayacak demektir, ikisi için TEK bir net mesaj gösteriyoruz.
+// Sesli okumanın doğru dilde (ör. Türkçe metni Türkçe sesle) okuması için transcript'in dilini cihaz
+// üzerinde tespit eder. Tespit edilemezse null — tarayıcının varsayılan sesi kullanılır.
 async function detectSourceLanguage(sampleText) {
-  if (typeof LanguageDetector === "undefined") return { lang: null, reason: "no-api" };
+  if (typeof LanguageDetector === "undefined") return null;
   try {
-    if ((await LanguageDetector.availability()) === "unavailable") return { lang: null, reason: "unsupported" };
+    if ((await LanguageDetector.availability()) === "unavailable") return null;
     const detector = await LanguageDetector.create();
     const [top] = await detector.detect(sampleText.slice(0, 800));
-    const lang = top && top.detectedLanguage !== "und" && top.confidence > 0.4 ? top.detectedLanguage : null;
-    return { lang, reason: lang ? "ok" : "low-confidence" };
+    return top && top.detectedLanguage !== "und" && top.confidence > 0.4 ? top.detectedLanguage : null;
   } catch {
-    return { lang: null, reason: "error" };
+    return null;
   }
-}
-
-// Cihaz üzerindeki çeviri motoru bazı girdilerde "<b9000></b900>" ya da ">> >>" gibi anlamsız, kendi
-// iç işaretleyicilerini sızdırabiliyor (bilinen bir model tuhaflığı, hangi dilden hangi dile olursa
-// olsun görülebiliyor). Bunları temizliyoruz; temizlik sonrası metin boş kalırsa (tamamen sızıntıdan
-// ibaretse) orijinal metne düşüyoruz — hiçbir zaman bozuk/anlamsız bir çıktı gösterilmiyor.
-// Önceki regex ("<b9000>", "</b900>" gibi harf+rakam etiket sanıp) sadece belirli bir kalıba uyan
-// sızıntıları yakalıyordu — kullanıcı "< / b9000>" gibi ARADA BOŞLUK olan bir varyant bildirdi, o hiç
-// eşleşmiyordu. Artık kalıp aramıyoruz: köşeli parantez içinde NE OLURSA OLSUN (boşluklu, rakamlı,
-// harfli, karışık) hepsini atıyoruz — bu motorun kendi iç işaretleyicileri konuşulan dilde asla
-// görünmeyecek bir şey, o yüzden agresif olmak güvenli. Hangi dile çevrilirse çevrilsin aynı şekilde çalışır.
-// Çeviri mantığını (cümle cümle bölme, sayı koruma, sızıntı temizliği) her iyileştirdiğimizde bu sayıyı
-// artırıyoruz — entry.translations önbelleği, hangi sürümle üretildiği bu numarayla eşleşmiyorsa
-// (translateBtn dinleyicisine bkz.) geçersiz sayılıp otomatik yeniden çevriliyor. Bunsuz, önceden bir
-// kere çevrilmiş bir video hep eski (düzeltmeden önceki) çeviriyi göstermeye devam ederdi.
-const TRANSLATION_CACHE_VERSION = 4;
-const LEAKED_TAG_RE = /<[^<>]*>/g;
-function cleanTranslation(text, fallback) {
-  if (!text) return fallback;
-  let cleaned = text.replace(LEAKED_TAG_RE, "");
-  // Eşleşmeyen tek "<" ya da ">" karakterlerinden ibaret parçalar da (kaç tane/boşluklu olursa olsun)
-  // gerçek sızıntı — kelime kelime ayırıp tamamen bu karakterlerden oluşan token'ları atıyoruz.
-  cleaned = cleaned.split(/\s+/).filter((tok) => tok && !/^[<>]+$/.test(tok)).join(" ").trim();
-  return cleaned || fallback;
 }
 
 async function init() {
@@ -215,14 +135,13 @@ async function init() {
 
   const { meta, blocks } = entry;
   entry.highlights = entry.highlights || []; // {sec, text, ts}[] — favorilenen anlar
-  document.title = meta.title || "skimcast";
+  document.title = meta.title || "Talkline";
   // Başlık zaten yukarıdaki h1'de var — burada tekrarlamıyoruz, yöntemi ("youtube-altyazı (en, otomatik)"
   // gibi) de göstermiyoruz çünkü kullanıcıya bir anlam ifade etmiyor. Sadece video/podcast süresi kalıyor.
   // meta.duration bazı kaynaklarda (podcast RSS, web sayfası) hep boş/0 geliyor — o durumda transcript'in
   // son zaman damgasından yaklaşık süreyi kendimiz hesaplıyoruz, tamamen boş kalmasın.
   const lastSec = [...blocks].reverse().find((b) => b.sec != null)?.sec;
   const metaLine = meta.duration || (lastSec != null ? fmtTime(lastSec) : "");
-  const canTranslate = typeof Translator !== "undefined";
   const canSpeak = typeof speechSynthesis !== "undefined";
   const ytVideoId = id.startsWith("yt:") ? id.slice(3) : null; // "🔗 Videoyla Eşitle" sadece YouTube'da anlamlı
 
@@ -236,7 +155,7 @@ async function init() {
         </div>
       </div>
       <h1>${escapeHtml(meta.title || t("popup_title"))}</h1>
-      <div class="meta">${escapeHtml(metaLine)}</div>
+      <div class="meta" id="metaLine">${escapeHtml(metaLine)}</div>
     </header>
     ${meta.chapters?.length ? `
     <div class="chapters-row" id="chaptersRow">
@@ -258,28 +177,21 @@ async function init() {
     <div id="videoNoteBox" class="video-note-box" hidden>
       <textarea id="videoNoteText" class="video-note" placeholder="${escapeHtml(t("video_note_placeholder"))}"></textarea>
     </div>
-    <div class="toolbar-section">
-      <div class="toolbar-label">${t("section_translate")}</div>
-      ${canTranslate ? `
-      <div class="translate-bar">
-        <select id="translateLang"></select>
-        <button id="translateBtn">${t("translate_btn")}</button>
-        <button id="originalBtn" hidden>${t("translate_original_btn")}</button>
-        <span id="translateStatus" class="hint" hidden></span>
-      </div>` : `<p class="hint">${t("translate_unsupported_device")}</p>`}
-    </div>
     ${canSpeak ? `
     <div class="toolbar-section">
       <div class="toolbar-label">${t("section_tts")}</div>
-      <div class="translate-bar">
+      <div class="control-bar">
         <button id="ttsBtn">🔊 ${t("tts_btn")}</button>
         <select id="ttsVoice"></select>
         <select id="ttsRate">
-          <option value="1">1x</option>
+          <option value="0.25">0.25x</option>
+          <option value="0.5">0.5x</option>
+          <option value="0.75">0.75x</option>
+          <option value="1" selected>1x</option>
           <option value="1.25">1.25x</option>
-          <option value="1.5" selected>1.5x</option>
+          <option value="1.5">1.5x</option>
+          <option value="1.75">1.75x</option>
           <option value="2">2x</option>
-          <option value="2.5">2.5x</option>
         </select>
         <button id="ttsStopBtn" hidden>⏹ ${t("tts_stop_btn")}</button>
       </div>
@@ -302,9 +214,6 @@ async function init() {
   }
 
   const contentEl = document.getElementById("content");
-  // state.texts[i]: o an EKRANDA GÖRÜNEN metin (orijinal ya da çevrilmiş) — kopyala/indir/favori/arama
-  // hep buradan okur, blocks[i].text her zaman orijinal kalır (geri dönebilmek için).
-  const state = { texts: blocks.map((b) => b.text), lang: null };
   const highlightKey = (i) => (blocks[i].sec != null ? `sec:${blocks[i].sec}` : `i:${i}`);
   // "Yıldızlı" olmak ile "bir klasöre kayıtlı" olmak birbirinden bağımsız — e-postada yıldızlamak ile
   // bir etikete koymak nasıl ayrıysa, burada da öyle. h.starred===false olsa bile kayıt (ve klasörü)
@@ -383,12 +292,12 @@ async function init() {
       if (existing) {
         existing.starred = true; // daha önce dosyaya taşınıp yıldızı kaldırılmıştı, tekrar yıldızlanıyor
       } else {
-        entry.highlights.push({ key: hKey, sec: b.sec, text: state.texts[i], title: meta.title, url: meta.linkPrefix, starred: true, ts: Date.now() });
+        entry.highlights.push({ key: hKey, sec: b.sec, text: blocks[i].text, title: meta.title, url: meta.linkPrefix, starred: true, ts: Date.now() });
       }
       starBtn.textContent = "★";
       starBtn.classList.add("starred");
       const url = jumpUrl(meta, b.sec);
-      const quote = `"${state.texts[i]}" — ${meta.title}${b.sec != null ? ` [${fmtTime(b.sec)}]` : ""}${url ? `\n${url}` : ""}`;
+      const quote = `"${blocks[i].text}" — ${meta.title}${b.sec != null ? ` [${fmtTime(b.sec)}]` : ""}${url ? `\n${url}` : ""}`;
       let copied = true;
       try { await navigator.clipboard.writeText(quote); } catch { copied = false; }
       showToast(copied ? t("fav_added_copied") : t("fav_added"));
@@ -421,7 +330,7 @@ async function init() {
       h.folder = folderName;
     } else {
       const b = blocks[i];
-      entry.highlights.push({ key: hKey, sec: b.sec, text: state.texts[i], title: meta.title, url: meta.linkPrefix, starred: false, folder: folderName, ts: Date.now() });
+      entry.highlights.push({ key: hKey, sec: b.sec, text: blocks[i].text, title: meta.title, url: meta.linkPrefix, starred: false, folder: folderName, ts: Date.now() });
     }
     await persistHighlights();
     const { [key]: saved } = await chrome.storage.local.get(key);
@@ -431,13 +340,13 @@ async function init() {
   // includeTimestamps verilmezse ekrandaki o anki tercihi (showTimestamps) kullanır — kopyala böyle
   // çalışır; indirme modalında ayrıca açıkça seçilebiliyor.
   function currentFullText(includeTimestamps = showTimestamps) {
-    return blocks.map((b, i) => (includeTimestamps && b.sec != null ? `[${fmtTime(b.sec)}] ` : "") + state.texts[i]).join("\n");
+    return blocks.map((b, i) => (includeTimestamps && b.sec != null ? `[${fmtTime(b.sec)}] ` : "") + blocks[i].text).join("\n");
   }
 
   blocks.forEach((b, i) => {
     const row = document.createElement("div");
     row.className = "block";
-    row.dataset.text = state.texts[i].toLocaleLowerCase("tr");
+    row.dataset.text = blocks[i].text.toLocaleLowerCase("tr");
     row.dataset.fav = isHighlighted(i) ? "1" : "0";
 
     if (b.sec != null) {
@@ -451,7 +360,7 @@ async function init() {
 
     const textSpan = document.createElement("span");
     textSpan.className = "text";
-    textSpan.textContent = state.texts[i];
+    textSpan.textContent = blocks[i].text;
     row.appendChild(textSpan);
 
     if (isLikelyAd(b.text)) {
@@ -564,21 +473,15 @@ async function init() {
         clearSyncHighlight();
         lastSyncIdx = idx;
         rows[idx].classList.add("synced");
-        activateWordTracking(rows[idx], state.texts[idx]);
+        activateWordTracking(rows[idx], blocks[idx].text);
         rows[idx].scrollIntoView({ behavior: "smooth", block: "center" });
       }
-      // Kelime kelime takip. Bu blok sunucudan (YouTube, bkz. server/main.py) geldiyse blocks[idx].words var — bloğu
-      // oluşturan HAM, ince taneli altyazı parçalarının (her biri kendi GERÇEK başlama saniyesiyle) listesi.
-      // O an hangi parçanın okunduğunu TAM olarak buluyoruz (araya müzik/sessizlik girse bile yanlış yere
-      // atlamıyor — o parçanın son kelimesinde bekliyor).
-      //
-      // Çeviri gösterilirken (İngilizce video, Türkçe okuyorsun gibi) ekrandaki kelimeler ARTIK orijinal
-      // parçalarla birebir eşleşmiyor (çeviri kelimeleri yeniden sıralayıp birleştirebiliyor) — bu yüzden
-      // çevrilmiş metni parçaların kelime SAYISI ORANINA göre aynı sayıda gruba bölüyoruz (parça 1 kaynak
-      // metnin %20'siyse, çevrilmiş metnin de ~%20'sini kapsıyor) ve o grup içinde ilerliyoruz. Birebir
-      // kelime hizalaması değil ama dil ne olursa olsun ORİJİNAL sesin GERÇEK zamanlamasına göre akıyor —
-      // önceki sürümde çeviri, orijinalin gerisinde kalıyordu çünkü tüm bloğa (30-60sn) kaba bir tahminle
-      // yayılıyordu; artık her dilde aynı, çok daha dar (~2-5sn) aralıkta takip ediyor.
+      // Kelime kelime takip. YouTube bloklarında blocks[idx].words var — bloğu oluşturan HAM, ince taneli
+      // altyazı parçalarının (her biri kendi GERÇEK başlama saniyesiyle) listesi. O an hangi parçanın
+      // okunduğunu TAM olarak buluyoruz (araya müzik/sessizlik girse bile yanlış yere atlamıyor — o
+      // parçanın son kelimesinde bekliyor). Ekrandaki kelimeler, "(müzik)" gibi etiketler temizlendiği
+      // için parçalarla birebir aynı sayıda olmayabilir — bu yüzden parçaların kelime SAYISI ORANINA göre
+      // eşleyip o grup içinde ilerliyoruz.
       const rawWords = blocks[idx].words;
       if (rawWords?.length) {
         let wIdx = -1;
@@ -591,7 +494,7 @@ async function init() {
           const cueDur = nextCueSec != null ? Math.max(nextCueSec - cue.sec, 0.5) : 2;
           const withinProgress = Math.min(Math.max((currentTime - cue.sec) / cueDur, 0), 1);
 
-          const displayWordCount = state.texts[idx].split(/\s+/).filter(Boolean).length;
+          const displayWordCount = blocks[idx].text.split(/\s+/).filter(Boolean).length;
           const cueWordCounts = rawWords.map((c) => c.text.split(/\s+/).filter(Boolean).length);
           const totalSourceWords = cueWordCounts.reduce((a, b) => a + b, 0) || 1;
           const sourceWordsBefore = cueWordCounts.slice(0, wIdx).reduce((a, b) => a + b, 0);
@@ -603,7 +506,7 @@ async function init() {
         }
         return;
       }
-      const text = state.texts[idx];
+      const text = blocks[idx].text;
       const wordCount = text.split(/\s+/).filter(Boolean).length;
       if (wordCount > 0) {
         const blockStart = blocks[idx].sec;
@@ -786,7 +689,7 @@ async function init() {
     doc.setTextColor(29, 29, 31);
     blocks.forEach((b, i) => {
       const prefix = includeTimestamps && b.sec != null ? `[${fmtTime(b.sec)}] ` : "";
-      addLine(prefix + state.texts[i], 11, 8);
+      addLine(prefix + blocks[i].text, 11, 8);
     });
     doc.save(`${safeName()}.pdf`);
   }
@@ -893,17 +796,23 @@ async function init() {
     showToast(result.folder ? `${t("moved_to_folder_toast")} "${result.folder}"` : t("removed_from_folder_toast"));
   });
 
-  // Kaynak dili hem çeviri hem sesli okuma kullanıyor — burada bir kere tespit edip ikisine de
-  // veriyoruz. Sesli okuma bunu almadan önce hep İngilizce/varsayılan sesle okumaya çalışıyordu
-  // (Türkçe metni yanlış telaffuzla), çünkü dil hiç belirtilmiyordu.
-  const sourceLangResult = (canSpeak || canTranslate)
-    ? await detectSourceLanguage(blocks.map((b) => b.text).join(" ")) : { lang: null, reason: "no-api" };
-  const sourceLang = sourceLangResult.lang;
+  // Sesli okuma dili bilmeden hep İngilizce/varsayılan sesle okumaya çalışıyordu (Türkçe metni yanlış
+  // telaffuzla) — burada bir kere tespit ediyoruz.
+  const sourceLang = canSpeak ? await detectSourceLanguage(blocks.map((b) => b.text).join(" ")) : null;
+
+  // Transcript'in dili (sadece bilgi, değiştirilemez) süre satırına ekleniyor: YouTube'da altyazının
+  // kendi dili (meta.method, ör. "youtube-altyazı (en, otomatik)"), diğerlerinde tespit edilen dil.
+  const contentLang = meta.method?.match(/^youtube-altyazı \(([\w-]+),/)?.[1] || sourceLang;
+  if (contentLang) {
+    try {
+      const langName = new Intl.DisplayNames([await getUiLang()], { type: "language" }).of(contentLang);
+      document.getElementById("metaLine").textContent = [metaLine, langName].filter(Boolean).join(" · ");
+    } catch { /* tanınmayan dil kodu — sadece süre kalır */ }
+  }
 
   // ------------------------------------------------------------ sesli okuma (cihaz üzerinde, Web Speech API)
-  // Videoyu hiç açmadan, sadece dinleyerek "tüketmek" için — ekrandaki hangi metin görünüyorsa (orijinal
-  // ya da çevrilmiş) onu okuyor. Tamamen tarayıcı içinde, API anahtarı/ağ isteği yok.
-  let refreshTtsVoices = null; // çeviri dili değişince (applyTexts) ses listesini tazelemek için
+  // Videoyu hiç açmadan, sadece dinleyerek "tüketmek" için. Tamamen tarayıcı içinde, API anahtarı/ağ
+  // isteği yok.
   if (canSpeak) {
     const ttsBtn = document.getElementById("ttsBtn");
     const ttsVoiceSelect = document.getElementById("ttsVoice");
@@ -951,7 +860,7 @@ async function init() {
     }
 
     async function populateTtsVoices() {
-      const lang = state.lang || sourceLang;
+      const lang = sourceLang;
       const langVoices = sortVoicesByQuality(voicesForLang(lang));
       if (!langVoices.length) {
         ttsVoiceSelect.innerHTML = `<option value="">${escapeHtml(t("tts_no_voice"))}</option>`;
@@ -969,11 +878,9 @@ async function init() {
       const { [voiceKey]: saved } = await chrome.storage.local.get(voiceKey);
       if (saved && langVoices.some((v) => v.name === saved)) ttsVoiceSelect.value = saved;
     }
-    refreshTtsVoices = populateTtsVoices;
 
     ttsVoiceSelect.addEventListener("change", () => {
-      const lang = state.lang || sourceLang;
-      chrome.storage.local.set({ [TTS_VOICE_KEY_PREFIX + lang]: ttsVoiceSelect.value });
+      chrome.storage.local.set({ [TTS_VOICE_KEY_PREFIX + sourceLang]: ttsVoiceSelect.value });
     });
 
     let currentReadingIndex = -1;
@@ -998,15 +905,14 @@ async function init() {
 
     function ttsSpeakFrom(index) {
       if (index >= blocks.length) { ttsStop(); return; }
-      const text = state.texts[index];
+      const text = blocks[index].text;
       if (!text.trim()) { ttsSpeakFrom(index + 1); return; } // boş satırı atla
       const utter = new SpeechSynthesisUtterance(text);
       utter.rate = parseFloat(ttsRateSelect.value);
-      // Ekranda o an görünen dile göre ses seçiliyor: çevrilmişse hedef dil, değilse tespit edilen
-      // kaynak dil. Seçtiğin ses varsa (ttsVoiceSelect) doğrudan onu kullanıyoruz — sadece lang
-      // belirtmek tarayıcının rastgele/düşük kaliteli bir sesi seçmesine yol açabiliyordu.
-      const lang = state.lang || sourceLang;
-      if (lang) utter.lang = lang;
+      // Tespit edilen dile göre ses seçiliyor. Seçtiğin ses varsa (ttsVoiceSelect) doğrudan onu
+      // kullanıyoruz — sadece lang belirtmek tarayıcının rastgele/düşük kaliteli bir sesi seçmesine yol
+      // açabiliyordu.
+      if (sourceLang) utter.lang = sourceLang;
       const chosenVoice = ttsVoices.find((v) => v.name === ttsVoiceSelect.value);
       if (chosenVoice) utter.voice = chosenVoice;
       // Kelime kelime takip: tarayıcı/ses "boundary" olayını destekliyorsa charIndex GERÇEK (tahmini
@@ -1079,149 +985,6 @@ async function init() {
     ttsVoices = await getVoicesAsync();
     await populateTtsVoices();
   }
-
-  // ------------------------------------------------------------ çeviri (cihaz üzerinde)
-  if (!canTranslate) return;
-
-  const translateSelect = document.getElementById("translateLang");
-  const translateBtn = document.getElementById("translateBtn");
-  const originalBtn = document.getElementById("originalBtn");
-  const statusEl = document.getElementById("translateStatus");
-
-  if (!sourceLang) {
-    statusEl.hidden = false;
-    // "unsupported"/"no-api": cihaz/tarayıcı özelliği hiç desteklemiyor — kalıcı, hangi video olursa
-    // olsun aynı sonuç. "low-confidence"/"error": bu videoya/içeriğe özel, tek seferlik bir durum. İkisini
-    // aynı belirsiz mesajla göstermek "bir bug mı var" diye düşündürüyordu.
-    statusEl.textContent = sourceLangResult.reason === "unsupported" || sourceLangResult.reason === "no-api"
-      ? t("translate_unsupported_device") : t("translate_no_source");
-    translateBtn.disabled = true;
-    translateSelect.disabled = true;
-    return;
-  }
-  // Kaynak dili listeden çıkarmıyoruz (ör. İngilizce her zaman seçenek olarak kalsın) — dil tespiti
-  // yanılabiliyor, kullanıcı istediği hedefi her zaman görebilsin.
-  translateSelect.innerHTML = TRANSLATE_LANGS
-    .map((l) => `<option value="${l.code}">${escapeHtml(l.label)}</option>`).join("");
-  // Her seferinde dil seçmek zorunda kalmasın diye en son hangi dile çevirdiyse (bu videoda değilse
-  // bile) o dil önceden seçili geliyor — genelde hep aynı dile çevrilir.
-  const DEFAULT_TRANSLATE_LANG_KEY = "skimcastDefaultTranslateLang";
-  const { [DEFAULT_TRANSLATE_LANG_KEY]: defaultLang } = await chrome.storage.local.get(DEFAULT_TRANSLATE_LANG_KEY);
-  if (defaultLang && defaultLang !== sourceLang) translateSelect.value = defaultLang;
-
-  function applyTexts(texts, lang) {
-    state.texts = texts;
-    state.lang = lang;
-    rows.forEach((row, i) => {
-      row.dataset.text = texts[i].toLocaleLowerCase("tr");
-      row.querySelector(".text").textContent = texts[i];
-    });
-    applyFilters();
-    originalBtn.hidden = lang === null;
-    refreshTtsVoices?.(); // dil değişti, sesli okuma listesi de bu dile göre güncellensin
-  }
-
-  translateBtn.addEventListener("click", async () => {
-    const target = translateSelect.value;
-    translateBtn.disabled = true;
-    statusEl.hidden = false;
-
-    if (target === sourceLang) { // zaten bu dilde — çevirmeye gerek yok, orijinali göster
-      applyTexts(blocks.map((b) => b.text), null);
-      statusEl.textContent = t("translate_done");
-      translateBtn.disabled = false;
-      return;
-    }
-
-    await chrome.storage.local.set({ [DEFAULT_TRANSLATE_LANG_KEY]: target });
-
-    // Önbellek SÜRÜMLÜ: çeviri mantığını (cümle cümle bölme, sayı koruma, vb.) her iyileştirdiğimde bu
-    // sayıyı artırıyorum — eski, bu iyileştirmelerden ÖNCE üretilmiş önbellek otomatik geçersiz sayılıyor.
-    // Bunsuz, bir kullanıcı bir videoyu bir kere çevirip sonra biz motoru düzeltsek bile hep eski (hatalı)
-    // çeviriyi görmeye devam ederdi — "düzelttim" deyip hiçbir şey değişmemiş gibi görünürdü.
-    const cached = entry.translationsVersion === TRANSLATION_CACHE_VERSION ? entry.translations?.[target] : null;
-    if (cached && cached.length === blocks.length) {
-      applyTexts(cached, target);
-      statusEl.textContent = t("translate_done");
-      translateBtn.disabled = false;
-      return;
-    }
-
-    try {
-      statusEl.textContent = t("translate_preparing");
-      const translator = await Translator.create({
-        sourceLanguage: sourceLang,
-        targetLanguage: target,
-        monitor(m) {
-          m.addEventListener("downloadprogress", (e) => {
-            statusEl.textContent = `${t("translate_downloading")} ${Math.round(e.loaded * 100)}%`;
-          });
-        },
-      });
-      // Önceki sürüm blokları TEK TEK sırayla çeviriyordu — uzun videolarda bekleme uzuyordu. İki
-      // iyileştirme: (1) birden fazla bloğu AYNI ANDA çeviriyoruz (CONCURRENCY kadar), (2) her blok
-      // biter bitmez ekrana anında yansıtıyoruz — kullanıcı en baştan itibaren okumaya başlayabiliyor,
-      // geri kalanı arka planda tamamlanıyor, sonunu beklemesi gerekmiyor.
-      const CONCURRENCY = 4;
-      const translated = new Array(blocks.length);
-      let completed = 0, nextIndex = 0;
-      async function worker() {
-        while (nextIndex < blocks.length) {
-          const i = nextIndex++;
-          // Bloğu CÜMLE CÜMLE çeviriyoruz (yukarıdaki splitSentences notuna bkz.) — sırayla, aynı
-          // translator oturumuyla; her cümlede ayrı ayrı hata toleransı var.
-          const sentences = splitSentences(blocks[i].text);
-          const translatedParts = [];
-          for (const sentence of sentences) {
-            try {
-              const { protectedText, numbers } = protectNumbers(sentence);
-              let cleaned = cleanTranslation(await translator.translate(protectedText), protectedText);
-              // Çıktı şüpheli derecede kısaysa bir kere daha deniyoruz — model aynı girdide farklı bir
-              // denemede daha tam bir çıktı üretebiliyor. AMA: hâlâ kısa çıksa bile artık ORİJİNAL DİLE
-              // DÜŞMÜYORUZ — bu, Türkçe gibi eklemeli dillerde YANLIŞ ALARM veriyordu (doğru bir Türkçe
-              // çeviri, İngilizce kaynaktan kelime SAYISI olarak çok daha kısa olabilir — "sondan
-              // eklemeli" bir dilde bu normal, eksik demek değil) ve sonuçta çevrilmiş Türkçe metnin
-              // İÇİNE rastgele İngilizce cümleler karışmasına yol açıyordu — kullanıcı bunu (haklı olarak)
-              // hata olarak bildirdi. Dil karışması, terslikli-ama-tek-dilde bir çeviriden HER ZAMAN daha
-              // kötü — o yüzden elimizdeki çeviriyi (kısa da olsa) kullanıyoruz, orijinali göstermiyoruz.
-              if (isSuspiciouslyShort(sentence, cleaned)) {
-                try {
-                  const retry = cleanTranslation(await translator.translate(protectedText), protectedText);
-                  if (!isSuspiciouslyShort(sentence, retry)) cleaned = retry;
-                } catch { /* yeniden deneme başarısız, ilk sonuçla devam */ }
-              }
-              if (numbers.length) cleaned = restoreNumbers(cleaned, numbers);
-              translatedParts.push(cleaned);
-            } catch {
-              // Tek bir cümlede çeviri motoru hata verirse tüm bloğu iptal etmek yerine o cümleyi
-              // orijinal haliyle bırakıp devam ediyoruz.
-              translatedParts.push(sentence);
-            }
-          }
-          translated[i] = translatedParts.join(" ");
-          completed++;
-          statusEl.textContent = `${t("translate_progress")} ${completed}/${blocks.length}`;
-          rows[i].querySelector(".text").textContent = translated[i];
-          rows[i].dataset.text = translated[i].toLocaleLowerCase("tr");
-        }
-      }
-      await Promise.all(Array.from({ length: CONCURRENCY }, worker));
-      applyTexts(translated, target);
-      statusEl.textContent = t("translate_done");
-      entry.translations = { ...(entry.translationsVersion === TRANSLATION_CACHE_VERSION ? entry.translations || {} : {}), [target]: translated };
-      entry.translationsVersion = TRANSLATION_CACHE_VERSION;
-      await chrome.storage.local.set({ [key]: entry }); // sonraki açılışta tekrar çevirmeye gerek kalmasın
-    } catch (e) {
-      statusEl.textContent = `${t("translate_error")} ${e.message || e}`;
-    } finally {
-      translateBtn.disabled = false;
-    }
-  });
-
-  originalBtn.addEventListener("click", () => {
-    applyTexts(blocks.map((b) => b.text), null);
-    statusEl.hidden = true;
-  });
 }
 
 init();

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""skimcast: bir link (veya ses/video dosyası) ver, zaman damgalı transcript al.
+"""Talkline: bir link (veya ses/video dosyası) ver, zaman damgalı transcript al.
 
 Sırayla dener, ilk başarılı olan kazanır:
   YouTube altyazısı -> podcast transcript etiketi -> site altyazısı (yt-dlp) -> web sayfası metni
@@ -29,7 +29,7 @@ PART_CHARS = 20000  # bundan uzun transcript parça dosyalarına bölünür
 BLOCK_SECONDS = 30  # satırlar yaklaşık bu süreli bloklara birleştirilir
 TIMEOUT = 30
 MIN_PAGE_CHARS = 300
-UA = "skimcast/0.1 (+https://github.com/Opporhan/skimcast)"
+UA = "talkline/0.1 (+https://github.com/Opporhan/talkline)"
 YT_ID = re.compile(r"(?:youtu\.be/|youtube\.com/(?:watch\?(?:[^#]*&)?v=|shorts/|embed/|live/|v/))([\w-]{11})")
 APPLE = re.compile(r"podcasts\.apple\.com/.*?/id(\d+)")
 FEED = re.compile(r"(\.xml|\.rss|/feed|/rss)(/|\?|$)", re.IGNORECASE)
@@ -434,7 +434,7 @@ def write_output(t: Transcript, target: str, out: Path) -> tuple:
 
 
 def print_result(meta: dict, text: str) -> None:
-    print("=== SKIMCAST TRANSCRIPT ===")
+    print("=== TALKLINE TRANSCRIPT ===")
     for k in ("title", "source", "method", "duration", "link_prefix", "chars"):
         if meta.get(k):
             print(f"{k}: {meta[k]}")

@@ -4,7 +4,7 @@ argument-hint: <link veya dosya> [--lang tr]
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/transcript.py *) Read
 ---
 
-# skimcast: link ver, özet al
+# Talkline: link ver, özet al
 
 Kullanıcının verdiği içerik: `$ARGUMENTS`
 

@@ -60,7 +60,7 @@ h1 { font-size: 26px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.02em;
 .star-ico { color: var(--text); }
 .toggle-btn.active .star-ico { color: #f5b400; }
 
-/* Sadece arama satırı sabit (sticky) kalıyor; aksiyon düğmeleri ve çeviri satırı normal akışta — birden
+/* Sadece arama satırı sabit (sticky) kalıyor; aksiyon düğmeleri ve sesli okuma satırı normal akışta — birden
    fazla sticky satırı üst üste bindirmek konumlandırmayı kırılgan yapıyordu. */
 .search-row {
   display: flex; gap: 8px; align-items: center; margin-bottom: 6px;
@@ -102,13 +102,12 @@ h1 { font-size: 26px; font-weight: 700; margin: 0 0 4px; letter-spacing: -.02em;
   color: var(--text-muted); margin: 0 0 5px 2px;
 }
 .hint { color: var(--text-muted); font-size: 13px; }
-.translate-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
-.translate-bar select {
+.control-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.control-bar select {
   /* Sağdaki varsayılan ok neredeyse kenara yapışıyordu; sağ boşluğu artırdık. */
   padding: 9px 28px 9px 11px; border: none; border-radius: 10px; font-size: 13px;
   background: var(--bg-subtle); color: var(--text);
 }
-#translateStatus { color: var(--accent); }
 button {
   padding: 8px 14px; border: none; border-radius: 10px; background: var(--bg-subtle);
   color: var(--text); font-size: 13px; cursor: pointer; white-space: nowrap;
@@ -208,14 +207,14 @@ button:hover { filter: brightness(.96); }
 /* Dar genişlik (YouTube kenar paneli gibi) — çok sayıda pill düğme + seçim kutusu tek satırda kalamayıp
    çirkin bir şekilde alt alta yığılıyordu. Burada iki şey değişiyor: (1) araç çubuğundaki düğmeler sadece
    ikon gösteriyor (etiketler gizleniyor, title ile hâlâ ipucu var) — tek, düzenli bir satıra sığıyorlar;
-   (2) çeviri/sesli okuma satırlarındaki seçim kutuları/düğmeler tam genişlik alıp ALT ALTA (ama düzenli,
+   (2) sesli okuma satırındaki seçim kutuları/düğmeler tam genişlik alıp ALT ALTA (ama düzenli,
    her biri kendi satırında) diziliyor — yan yana sıkışıp "🌐 Adri" gibi bir seçim kutusunun metni
    kırpılması/satırın taşması yerine, her kontrol kendi rahat genişliğinde okunuyor. */
 @media (max-width: 480px) {
   #app { padding: 24px 14px 60px; }
   h1 { font-size: 21px; }
   .action-row button { flex-basis: 64px; width: 64px; }
-  .toolbar-section .translate-bar { flex-direction: column; align-items: stretch; }
-  .toolbar-section .translate-bar select,
-  .toolbar-section .translate-bar button { width: 100%; }
+  .toolbar-section .control-bar { flex-direction: column; align-items: stretch; }
+  .toolbar-section .control-bar select,
+  .toolbar-section .control-bar button { width: 100%; }
 }
