@@ -17,10 +17,18 @@ function legacyToNewKeys(data) {
   return out;
 }
 
+// Bir depo (özellikle eşitleme kapalıyken chrome.storage.sync) yanıt vermezse sayfa/YouTube paneli
+// sonsuza kadar beklemesin: her depo en fazla bu kadar bekleniyor, sonra atlanıp sonraki açılışta
+// yeniden deneniyor. (Edge'de panel ve oynatıcı düğmesi hiç görünmeyince eklendi.)
+const MIGRATE_TIMEOUT_MS = 2000;
+
 async function migrateLegacyStorage() {
   for (const area of [chrome.storage.local, chrome.storage.sync]) {
     try {
-      const all = await area.get(null);
+      const all = await Promise.race([
+        area.get(null),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), MIGRATE_TIMEOUT_MS)),
+      ]);
       const legacy = Object.keys(all).filter((k) => k.startsWith(LEGACY_PREFIX));
       if (!legacy.length) continue;
       const moved = {};

@@ -186,7 +186,8 @@ const AD_PATTERNS = [
 {
   const names = ["legacyToNewKeys", "migrateLegacyStorage"];
   const src = fs.readFileSync(path.join(dir, "migrate.js"), "utf8");
-  const preamble = src.match(/const LEGACY_PREFIX = .+;\n/)[0] + src.match(/const LEGACY_DROPPED = .+;/)[0] + "\n";
+  const preamble = src.match(/const LEGACY_PREFIX = .+;\n/)[0] + src.match(/const LEGACY_DROPPED = .+;/)[0] + "\n" +
+    "const MIGRATE_TIMEOUT_MS = 50;\n";
   const { legacyToNewKeys, migrateLegacyStorage } = await extract("migrate.js", names, preamble);
   totalFns += names.length;
 
@@ -213,6 +214,12 @@ const AD_PATTERNS = [
   const snapshot = JSON.stringify(local.data);
   await migrateLegacyStorage();
   assert.equal(JSON.stringify(local.data), snapshot);
+
+  // Hiç yanıt vermeyen depo (Edge'de eşitleme kapalıyken olabilen durum) taşımayı kilitlememeli.
+  const hanging = { get: () => new Promise(() => {}) };
+  globalThis.chrome = { storage: { local: makeArea({ skimcastNotes: [1] }), sync: hanging } };
+  await migrateLegacyStorage(); // takılırsa test burada asılı kalır
+  assert.deepEqual(chrome.storage.local.data, { talklineNotes: [1] });
   delete globalThis.chrome;
 }
 
