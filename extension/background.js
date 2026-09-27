@@ -87,10 +87,13 @@ function pickCaptionTrack(tracks, langs) {
 }
 
 function decodeEntities(s) {
-  return s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e) => {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (m, e) => {
     const k = e.toLowerCase();
-    if (k[0] === "#") return String.fromCodePoint(k[1] === "x" ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10));
-    return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" }[k];
+    if (k[0] !== "#") return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" }[k];
+    const cp = k[1] === "x" ? parseInt(k.slice(2), 16) : parseInt(k.slice(1), 10);
+    // Geçersiz kod (ör. &#0; ya da 0x10FFFF üstü) fromCodePoint'te hata fırlatır — tek bir bozuk
+    // karakter yüzünden bütün transcript düşmesin, olduğu gibi bırak.
+    return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
   });
 }
 

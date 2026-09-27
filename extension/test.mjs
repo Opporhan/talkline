@@ -133,6 +133,8 @@ let totalFns = 0;
       '<text start="7" dur="1"><font color="#fff">a &amp;amp; b</font></text><text start="9" dur="1"> </text></transcript>'),
     [[5.3, "it's ok"], [7, "a & b"]],
   );
+  // Geçersiz karakter kodu tüm ayrıştırmayı düşürmemeli.
+  assert.deepEqual(parseCaptionXml('<text start="1" dur="1">a &#0; b &#99999999; c</text>'), [[1, "a &#0; b &#99999999; c"]]);
 
   // blocksWithWords: transcript.py'nin to_blocks'uyla aynı birleştirme; ham segmentler words'te.
   const bw = blocksWithWords([[0, "bir."], [10, "iki"], [31, "üç."], [40, "dört"]]);
