@@ -22,7 +22,7 @@ function onTimeUpdate(video, videoId) {
   if (now - lastSentAt < 400) return; // saniyede ~2 güncelleme yeterli, mesaj trafiğini gereksiz artırma
   lastSentAt = now;
   try {
-    chrome.runtime.sendMessage({ type: "skimcast-time-update", videoId, currentTime: video.currentTime });
+    chrome.runtime.sendMessage({ type: "talkline-time-update", videoId, currentTime: video.currentTime });
   } catch { /* uzantı yeniden yüklenmiş olabilir, sessizce geç */ }
 }
 
@@ -31,7 +31,7 @@ function onTimeUpdate(video, videoId) {
 // içindeyken bunun yerine postMessage ile buraya bildiriyor.
 window.addEventListener("message", (e) => {
   if (e.source !== document.getElementById(SIDEBAR_IFRAME_ID)?.contentWindow) return;
-  if (e.data?.type !== "skimcast-seek") return;
+  if (e.data?.type !== "talkline-seek") return;
   const video = document.querySelector("video.html5-main-video") || document.querySelector("video");
   if (video && typeof e.data.sec === "number") video.currentTime = e.data.sec;
 });
@@ -49,36 +49,36 @@ function attach() {
     // görüldü). Video aynı kalsa bile her saniye kontrol edip eksikse/boşsa yeniden kuruyoruz.
     const panel = document.getElementById(PANEL_ID);
     const missing = !panel && !document.getElementById(FALLBACK_ID) && findSecondaryColumn();
-    const empty = panel && !panel.querySelector(".skimcast-sb-body")?.firstChild;
+    const empty = panel && !panel.querySelector(".talkline-sb-body")?.firstChild;
     if (missing || empty) {
       panelVideoId = null;
       ensureSidebarPanel(videoId);
     }
     return;
   }
-  if (attachedVideo && attachedVideo._skimcastHandler) {
-    attachedVideo.removeEventListener("timeupdate", attachedVideo._skimcastHandler);
+  if (attachedVideo && attachedVideo._talklineHandler) {
+    attachedVideo.removeEventListener("timeupdate", attachedVideo._talklineHandler);
   }
   const handler = () => onTimeUpdate(video, videoId);
   video.addEventListener("timeupdate", handler);
-  video._skimcastHandler = handler;
+  video._talklineHandler = handler;
   attachedVideo = video;
   attachedId = videoId;
   ensureSidebarPanel(videoId);
 }
 
 // ------------------------------------------------------------ kenar paneli
-const PANEL_ID = "skimcast-sidebar-panel";
-const SIDEBAR_IFRAME_ID = "skimcast-sidebar-iframe";
-const archiveKey = (id) => `skimcastArchive:${id}`;
+const PANEL_ID = "talkline-sidebar-panel";
+const SIDEBAR_IFRAME_ID = "talkline-sidebar-iframe";
+const archiveKey = (id) => `talklineArchive:${id}`;
 
 // Uzantının kendi _locales/<dil>/messages.json'ından okuyor (background.js'in sağ tık menüsü başlığı için
 // yaptığının aynısı) — içerik betiği viewer.js'nin i18n sistemini (lang.js) doğrudan kullanamıyor.
 let messagesCache = null;
 async function loadMessages() {
   if (messagesCache) return messagesCache;
-  const { skimcastUiLang } = await chrome.storage.local.get("skimcastUiLang");
-  const lang = skimcastUiLang || (chrome.i18n.getUILanguage().split("-")[0] === "tr" ? "tr" : "en");
+  const { talklineUiLang } = await chrome.storage.local.get("talklineUiLang");
+  const lang = talklineUiLang || (chrome.i18n.getUILanguage().split("-")[0] === "tr" ? "tr" : "en");
   try {
     const res = await fetch(chrome.runtime.getURL(`_locales/${lang}/messages.json`));
     messagesCache = await res.json();
@@ -108,7 +108,7 @@ function findSecondaryColumn() {
 // TAMAMEN kaybolmuyor, sadece kenar paneli konforunu kaybedip eski davranışa dönüyor.
 const SECONDARY_RETRY_LIMIT = 6;
 const SECONDARY_RETRY_DELAY_MS = 1000;
-const FALLBACK_ID = "skimcast-fallback-btn";
+const FALLBACK_ID = "talkline-fallback-btn";
 
 function buildFallbackButton(videoId) {
   if (document.getElementById(FALLBACK_ID) || document.getElementById(PANEL_ID)) return;
@@ -139,15 +139,15 @@ async function buildPanelShell() {
   const panel = document.createElement("div");
   panel.id = PANEL_ID;
   panel.innerHTML = `
-    <div class="skimcast-sb-header">
+    <div class="talkline-sb-header">
       <span>Talkline</span>
-      <button type="button" class="skimcast-sb-toggle" title="${escapeAttr(await tt("sidebar_collapse_hint", "Collapse"))}">▾</button>
+      <button type="button" class="talkline-sb-toggle" title="${escapeAttr(await tt("sidebar_collapse_hint", "Collapse"))}">▾</button>
     </div>
-    <div class="skimcast-sb-body"></div>
+    <div class="talkline-sb-body"></div>
   `;
-  panel.querySelector(".skimcast-sb-toggle").addEventListener("click", () => {
-    const collapsed = panel.classList.toggle("skimcast-collapsed");
-    panel.querySelector(".skimcast-sb-toggle").textContent = collapsed ? "▸" : "▾";
+  panel.querySelector(".talkline-sb-toggle").addEventListener("click", () => {
+    const collapsed = panel.classList.toggle("talkline-collapsed");
+    panel.querySelector(".talkline-sb-toggle").textContent = collapsed ? "▸" : "▾";
   });
   return panel;
 }
@@ -158,19 +158,19 @@ function escapeAttr(s) {
 
 async function renderCta(body, videoId) {
   body.innerHTML = `
-    <div class="skimcast-sb-cta">
+    <div class="talkline-sb-cta">
       <p>${await tt("sidebar_cta_text", "See this video's searchable, click-to-jump transcript right here.")}</p>
-      <button type="button" class="skimcast-sb-fetch">${await tt("fetch_btn", "Get transcript")}</button>
-      <p class="skimcast-sb-status" hidden></p>
+      <button type="button" class="talkline-sb-fetch">${await tt("fetch_btn", "Get transcript")}</button>
+      <p class="talkline-sb-status" hidden></p>
     </div>`;
-  const btn = body.querySelector(".skimcast-sb-fetch");
-  const status = body.querySelector(".skimcast-sb-status");
+  const btn = body.querySelector(".talkline-sb-fetch");
+  const status = body.querySelector(".talkline-sb-status");
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     status.hidden = false;
     status.textContent = await tt("status_fetching", "Fetching transcript…");
     try {
-      const res = await chrome.runtime.sendMessage({ type: "skimcast-fetch-silent", url: location.href });
+      const res = await chrome.runtime.sendMessage({ type: "talkline-fetch-silent", url: location.href });
       if (!res?.ok) throw new Error(res?.error || "?");
       if (panelVideoId === videoId) renderIframe(body, videoId);
     } catch (e) {
@@ -218,7 +218,7 @@ async function ensureSidebarPanel(videoId, attempt = 0) {
     }
   }
 
-  const body = panel.querySelector(".skimcast-sb-body");
+  const body = panel.querySelector(".talkline-sb-body");
   const { [archiveKey(`yt:${videoId}`)]: entry } = await chrome.storage.local.get(archiveKey(`yt:${videoId}`));
   if (panelVideoId !== videoId) return; // bu sırada video tekrar değişmiş olabilir
   if (entry) renderIframe(body, videoId);
@@ -229,7 +229,7 @@ async function ensureSidebarPanel(videoId, attempt = 0) {
 // Videonun kendi kontrol çubuğunda (sağ alt, altyazı/ayarlar düğmelerinin yanı) bir Talkline düğmesi.
 // Panel sağ sütunda görünüyorsa onu açıp/kapatıyor; sağ sütun görünmüyorsa (dar pencere, sinema modu —
 // YouTube sütunu gizliyor ya da videonun altına taşıyor) transcript'i yeni sekmede açıyor.
-const PLAYER_BTN_ID = "skimcast-player-btn";
+const PLAYER_BTN_ID = "talkline-player-btn";
 
 function ensurePlayerButton() {
   if (document.getElementById(PLAYER_BTN_ID)) return;
@@ -261,8 +261,8 @@ function ensurePlayerButton() {
   btn.addEventListener("click", async () => {
     const panel = document.getElementById(PANEL_ID);
     if (panel && panel.offsetParent !== null) {
-      const wasCollapsed = panel.classList.contains("skimcast-collapsed");
-      panel.querySelector(".skimcast-sb-toggle").click();
+      const wasCollapsed = panel.classList.contains("talkline-collapsed");
+      panel.querySelector(".talkline-sb-toggle").click();
       if (wasCollapsed) panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
       return;
     }
@@ -281,14 +281,18 @@ function ensurePlayerButton() {
 // sıfırlayıp ensureSidebarPanel'i zorla yeniden çalıştırıyoruz ki artık arşivde olan kaydı görüp iframe'e
 // geçsin (aksi halde "zaten bu videoya göre kurulu" diye hiçbir şey yapmadan çıkardı).
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg?.type === "skimcast-refresh-panel" && msg.videoId) {
+  if (msg?.type === "talkline-refresh-panel" && msg.videoId) {
     panelVideoId = null;
     ensureSidebarPanel(msg.videoId);
   }
 });
 
-attach();
-// YouTube bir SPA — sayfa hiç yenilenmeden video/URL değişebiliyor (bir sonraki videoya geçme, ilgili
-// video tıklama, vb.). Kendi navigasyon olayını dinliyoruz; garanti olsun diye periyodik de kontrol ediyoruz.
-document.addEventListener("yt-navigate-finish", attach);
-setInterval(attach, 1000);
+// Önce eski "skimcast…" depolama anahtarlarını taşı (bkz. migrate.js) — yoksa panel arşivdeki kaydı
+// göremeyip "Transcript'i Getir" gösterirdi.
+migrateLegacyStorage().finally(() => {
+  attach();
+  // YouTube bir SPA — sayfa hiç yenilenmeden video/URL değişebiliyor (bir sonraki videoya geçme, ilgili
+  // video tıklama, vb.). Kendi navigasyon olayını dinliyoruz; garanti olsun diye periyodik de kontrol ediyoruz.
+  document.addEventListener("yt-navigate-finish", attach);
+  setInterval(attach, 1000);
+});

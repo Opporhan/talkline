@@ -19,7 +19,7 @@ try:
 except ImportError:
     try:
         tr.bootstrap(("mcp>=1.2,<2",))  # başarılıysa süreç yeniden başlar; dönmez
-    except tr.SkimError as e:
+    except tr.TalklineError as e:
         print(f"HATA: {e}", file=sys.stderr)
         sys.exit(2)
 
@@ -49,7 +49,7 @@ def get_transcript(url: str, part: int = 1, lang: str = "tr,en", whisper_model: 
     langs = [x.strip().split("-")[0] for x in lang.split(",") if x.strip()]
     try:
         meta, text = tr.load(url, langs, whisper_model, episode)
-    except tr.SkimError as e:
+    except tr.TalklineError as e:
         return f"HATA: {e}"
     except Exception as e:  # noqa: BLE001 - istemciye traceback yerine kısa mesaj dön
         return f"HATA: beklenmeyen sorun ({type(e).__name__}): {str(e)[:200]}"

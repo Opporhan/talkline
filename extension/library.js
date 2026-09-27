@@ -18,9 +18,9 @@ function fmtTime(sec) {
   return h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
 }
 
-const archiveKey = (id) => `skimcastArchive:${id}`;
-const ARCHIVE_INDEX_KEY = "skimcastArchiveIndex";
-const FOLDERS_KEY = "skimcastFolders";
+const archiveKey = (id) => `talklineArchive:${id}`;
+const ARCHIVE_INDEX_KEY = "talklineArchiveIndex";
+const FOLDERS_KEY = "talklineFolders";
 const NO_FOLDER = ""; // klasörsüz
 const DEFAULT_ICON = "📁";
 const ICON_CHOICES = [
@@ -341,7 +341,7 @@ async function updateHighlight(videoId, hKey, patch) {
 // ertesi gün otomatik değişiyor. En az 2 gün eski favoriler arasından seçiyoruz — az önce eklenen bir şeyi
 // "hatırlat" demenin bir anlamı yok.
 const RESURFACE_MIN_AGE_MS = 2 * 24 * 60 * 60 * 1000;
-const RESURFACE_DISMISS_KEY = "skimcastResurfaceDismissed";
+const RESURFACE_DISMISS_KEY = "talklineResurfaceDismissed";
 
 function pickResurfaceHighlight(allHighlights) {
   const eligible = allHighlights.filter((h) => h.starred !== false && Date.now() - h.ts >= RESURFACE_MIN_AGE_MS);
@@ -387,7 +387,7 @@ async function renderResurfaceCard(allHighlights) {
 // videolar/favoriler gibi bir klasöre taşıyabilir YA DA hiç klasöre koymadan "Tümü" görünümünde
 // bırakabilirsin — aynı VİDEOLAR için geçerli olan mantık (bkz. renderList: "Tümü" hepsini gösterir,
 // belirli bir klasör sadece o klasördekileri).
-const NOTES_KEY = "skimcastNotes";
+const NOTES_KEY = "talklineNotes";
 
 async function getNotes() {
   const { [NOTES_KEY]: notes = [] } = await chrome.storage.local.get(NOTES_KEY);
@@ -739,7 +739,7 @@ async function init() {
     const all = await chrome.storage.local.get(null);
     const backup = {};
     for (const k in all) {
-      if (k.startsWith("skimcastArchive:") || k === ARCHIVE_INDEX_KEY || k === FOLDERS_KEY || k === NOTES_KEY) backup[k] = all[k];
+      if (k.startsWith("talklineArchive:") || k === ARCHIVE_INDEX_KEY || k === FOLDERS_KEY || k === NOTES_KEY) backup[k] = all[k];
     }
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -783,7 +783,7 @@ async function init() {
       return;
     }
     if (!(await openRestoreConfirmModal())) return;
-    await chrome.storage.local.set(data);
+    await chrome.storage.local.set(legacyToNewKeys(data)); // eski (skimcast…) yedekler de açılsın
     index = await getIndex();
     folders = await getFolders();
     showToast(t("restore_done_toast"));
@@ -880,7 +880,7 @@ async function init() {
     }
     // "Cümleler ile oynama" — favorilenen anın metnini küçük bir panelde düzenleme.
     // Bir favorinin kişisel notu artık ayrı bir alanda (h.note) değil, paylaşılan Notlarım deposunda
-    // (skimcastNotes) — videoId + bu satırın anahtarıyla (sourceKey) eşleşen kayıt. Eski h.note'tan
+    // (talklineNotes) — videoId + bu satırın anahtarıyla (sourceKey) eşleşen kayıt. Eski h.note'tan
     // (bu özelliğin önceki bir sürümünde) veri kaybı olmasın diye, eşleşen kayıt yoksa onu kullanıyoruz.
     const editFav = e.target.closest(".edit-fav");
     if (editFav) {

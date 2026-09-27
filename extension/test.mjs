@@ -21,7 +21,7 @@ async function extract(file, names, preamble = "") {
     // parantezini "\n}\n" sanmayıp bir SONRAKİ fonksiyonun sonuna kadar aç gözlü eşleşip iki fonksiyonu
     // birden yakalıyordu (ör. isLikelyAd + hemen altındaki jumpUrl) — "zaten tanımlı" hatasına yol açıyordu.
     const singleLine = src.match(new RegExp(`function ${n}\\([^\\n]*\\)\\s*\\{[^\\n]*\\}\\n`));
-    const m = singleLine || src.match(new RegExp(`function ${n}\\([\\s\\S]*?\\n}\\n`));
+    const m = singleLine || src.match(new RegExp(`(?:async )?function ${n}\\([\\s\\S]*?\\n}\\n`));
     if (!m) throw new Error(`${file}: bulunamadı: ${n}`);
     code += m[0] + "\n";
   }
@@ -182,4 +182,38 @@ const AD_PATTERNS = [
   assert.equal(wordIndexAtChar("Hello world", 20), 1); // metin sonunu aşarsa son kelimede kalmalı
 }
 
-console.log(`Tüm mantık testleri geçti (${totalFns} fonksiyon doğrulandı: background.js + viewer.js).`);
+// ================================================================== migrate.js (skimcast → talkline)
+{
+  const names = ["legacyToNewKeys", "migrateLegacyStorage"];
+  const src = fs.readFileSync(path.join(dir, "migrate.js"), "utf8");
+  const preamble = src.match(/const LEGACY_PREFIX = .+;\n/)[0] + src.match(/const LEGACY_DROPPED = .+;/)[0] + "\n";
+  const { legacyToNewKeys, migrateLegacyStorage } = await extract("migrate.js", names, preamble);
+  totalFns += names.length;
+
+  // Eski yedek dosyası: anahtarlar yeni adlara çevrilir, çeviri artığı atılır, yeni adlılar aynen kalır.
+  assert.deepEqual(
+    legacyToNewKeys({ "skimcastArchive:yt:x": { a: 1 }, skimcastNotes: [1], skimcastDefaultTranslateLang: "tr", talklineTheme: "dark" }),
+    { "talklineArchive:yt:x": { a: 1 }, talklineNotes: [1], talklineTheme: "dark" },
+  );
+
+  // Sahte chrome.storage ile gerçek taşıma: eski anahtarlar taşınır ve silinir; yeni adla zaten kayıt
+  // varsa (daha yeni) üzerine yazılmaz; ikinci çalıştırma hiçbir şey değiştirmez; sync hatası çökertmez.
+  const makeArea = (init) => {
+    const data = { ...init };
+    return { data,
+      get: async () => ({ ...data }),
+      set: async (o) => { Object.assign(data, o); },
+      remove: async (ks) => { for (const k of ks) delete data[k]; } };
+  };
+  const local = makeArea({ "skimcastArchive:yt:x": { fav: 1 }, skimcastArchiveIndex: ["old"], talklineArchiveIndex: ["new"], other: 5 });
+  const sync = { get: async () => { throw new Error("sync kapalı"); } };
+  globalThis.chrome = { storage: { local, sync } };
+  await migrateLegacyStorage();
+  assert.deepEqual(local.data, { "talklineArchive:yt:x": { fav: 1 }, talklineArchiveIndex: ["new"], other: 5 });
+  const snapshot = JSON.stringify(local.data);
+  await migrateLegacyStorage();
+  assert.equal(JSON.stringify(local.data), snapshot);
+  delete globalThis.chrome;
+}
+
+console.log(`Tüm mantık testleri geçti (${totalFns} fonksiyon doğrulandı: background.js + viewer.js + migrate.js).`);

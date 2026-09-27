@@ -2,8 +2,8 @@
 // tarayıcı dilinden BAĞIMSIZ olarak değiştirebilmek için. chrome.i18n.getMessage() her zaman tarayıcının
 // kendi diline bakıyor, kullanıcı başına değiştirilemiyor — bu yüzden ilgili _locales/<dil>/messages.json
 // dosyasını kendimiz fetch edip t() bunun üzerinden çalışıyor. Tercih chrome.storage.local'de tek bir
-// anahtar (skimcastUiLang) olarak tutuluyor, tüm sayfalarda ortak.
-const UI_LANG_KEY = "skimcastUiLang"; // "tr" | "en"
+// anahtar (talklineUiLang) olarak tutuluyor, tüm sayfalarda ortak.
+const UI_LANG_KEY = "talklineUiLang"; // "tr" | "en"
 let _messages = null;
 
 function browserDefaultLang() {
@@ -25,6 +25,7 @@ async function getUiLang() {
 }
 
 async function initLang() {
+  await migrateLegacyStorage(); // eski "skimcast…" anahtarları (bkz. migrate.js) — her sayfa bunu ilk çağırıyor
   const lang = await getUiLang();
   try {
     const res = await fetch(chrome.runtime.getURL(`_locales/${lang}/messages.json`));

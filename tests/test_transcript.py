@@ -107,7 +107,7 @@ def test_feed_without_tag_falls_back_to_whisper_on_the_right_episode(monkeypatch
 
 def test_feed_episode_index_out_of_range(monkeypatch):
     monkeypatch.setattr(tr, "fetch", lambda url, retries=3: FEED.format(ns="x"))
-    with pytest.raises(tr.SkimError, match="yalnızca 2 bölüm"):
+    with pytest.raises(tr.TalklineError, match="yalnızca 2 bölüm"):
         tr.from_feed("https://x/feed.xml", "small", index=5)
 
 
@@ -128,9 +128,9 @@ def test_apple_link_resolves_episode_and_uses_feed_transcript(monkeypatch):
 
 
 def test_routing_errors_are_clear():
-    with pytest.raises(tr.SkimError, match="Spotify"):
+    with pytest.raises(tr.TalklineError, match="Spotify"):
         tr.get_transcript("https://open.spotify.com/episode/abc", ["tr"], "small", 0)
-    with pytest.raises(tr.SkimError, match="Geçerli bir link"):
+    with pytest.raises(tr.TalklineError, match="Geçerli bir link"):
         tr.get_transcript("merhaba dünya", ["tr"], "small", 0)
 
 
@@ -159,11 +159,11 @@ def test_media_and_page_both_fail_reports_original_reason(monkeypatch):
         raise RuntimeError("bölgesel kısıtlama")
 
     def no_text(url, method="x"):
-        raise tr.SkimError("boş")
+        raise tr.TalklineError("boş")
 
     monkeypatch.setattr(tr, "from_ytdlp", fail)
     monkeypatch.setattr(tr, "from_webpage", no_text)
-    with pytest.raises(tr.SkimError, match="bölgesel kısıtlama"):
+    with pytest.raises(tr.TalklineError, match="bölgesel kısıtlama"):
         tr.get_transcript("https://vid.example/v", ["tr"], "small", 0)
 
 
@@ -172,7 +172,7 @@ def test_tiny_page_text_is_rejected(monkeypatch):
         fetch_url=lambda url: "<html/>", extract=lambda html, **k: "kısa", extract_metadata=lambda html: None
     )
     monkeypatch.setitem(__import__("sys").modules, "trafilatura", fake)
-    with pytest.raises(tr.SkimError, match="okunabilir metin"):
+    with pytest.raises(tr.TalklineError, match="okunabilir metin"):
         tr.from_webpage("https://x")
 
 
@@ -213,7 +213,7 @@ def test_main_reports_friendly_error(monkeypatch, tmp_path, capsys):
     monkeypatch.setattr(tr.tempfile, "gettempdir", lambda: str(tmp_path))
 
     def fail(*a):
-        raise tr.SkimError("bu içerik desteklenmiyor")
+        raise tr.TalklineError("bu içerik desteklenmiyor")
 
     monkeypatch.setattr(tr, "get_transcript", fail)
     assert tr.main(["https://x/y"]) == 2
@@ -226,13 +226,13 @@ def test_apple_missing_episode_is_an_error_not_the_latest(monkeypatch):
         {"wrapperType": "podcastEpisode", "trackId": 111, "trackName": "Bölüm 1", "episodeUrl": "https://cdn/ep1.mp3"},
     ]}
     monkeypatch.setattr(tr, "fetch", lambda url, retries=3: json.dumps(lookup))
-    with pytest.raises(tr.SkimError, match="son 200 bölüm"):
+    with pytest.raises(tr.TalklineError, match="son 200 bölüm"):
         tr.from_apple("https://podcasts.apple.com/tr/podcast/show/id999?i=555", "small")
 
 
 def test_feed_hint_without_match_is_an_error(monkeypatch):
     monkeypatch.setattr(tr, "fetch", lambda url, retries=3: FEED.format(ns="x"))
-    with pytest.raises(tr.SkimError, match="RSS'te bulunamadı"):
+    with pytest.raises(tr.TalklineError, match="RSS'te bulunamadı"):
         tr.from_feed("https://x/feed.xml", "small", audio_hint="https://cdn/yok.mp3", title_hint="Yok")
 
 
@@ -269,22 +269,22 @@ def test_fetch_does_not_retry_permanent_http_errors(monkeypatch):
 
     monkeypatch.setattr(tr.urllib.request, "urlopen", urlopen)
     monkeypatch.setattr(tr.time, "sleep", lambda s: None)
-    with pytest.raises(tr.SkimError):
+    with pytest.raises(tr.TalklineError):
         tr.fetch("https://x/yok")
     assert len(calls) == 1
 
 
 def test_bootstrap_inside_venv_installs_extra_then_restarts_once(monkeypatch):
     runs, execs = [], []
-    monkeypatch.delenv("SKIMCAST_BOOTSTRAPPED", raising=False)
+    monkeypatch.delenv("TALKLINE_BOOTSTRAPPED", raising=False)
     monkeypatch.setattr(tr, "VENV", Path(tr.sys.prefix))  # zaten venv içindeyiz
     monkeypatch.setattr("subprocess.run", lambda cmd, **k: runs.append(cmd))
     monkeypatch.setattr(tr.os, "execv", lambda py, argv: execs.append(argv))
     tr.bootstrap(("faster-whisper",))
     assert "faster-whisper" in runs[-1] and len(execs) == 1
-    with pytest.raises(tr.SkimError, match="kurulamadı"):  # yeniden başlatmadan sonra hâlâ eksikse döngü yok
+    with pytest.raises(tr.TalklineError, match="kurulamadı"):  # yeniden başlatmadan sonra hâlâ eksikse döngü yok
         tr.bootstrap(("faster-whisper",))
-    monkeypatch.delenv("SKIMCAST_BOOTSTRAPPED")
+    monkeypatch.delenv("TALKLINE_BOOTSTRAPPED")
 
 
 def _cache_env(monkeypatch, tmp_path):
@@ -330,8 +330,8 @@ def test_ytdlp_hint_skipped_for_404(monkeypatch):
         raise RuntimeError("ERROR: HTTP Error 404: Not Found")
 
     monkeypatch.setattr(tr, "from_ytdlp", fail)
-    monkeypatch.setattr(tr, "from_webpage", lambda url, method="x": (_ for _ in ()).throw(tr.SkimError("boş")))
-    with pytest.raises(tr.SkimError) as e:
+    monkeypatch.setattr(tr, "from_webpage", lambda url, method="x": (_ for _ in ()).throw(tr.TalklineError("boş")))
+    with pytest.raises(tr.TalklineError) as e:
         tr.get_transcript("https://x.example/v", ["tr"], "small", 0)
     assert "yt-dlp eski" not in str(e.value)
 
@@ -363,7 +363,7 @@ def test_mcp_tool_returns_errors_as_text(monkeypatch):
     srv = _server()
 
     def fail(*a):
-        raise srv.tr.SkimError("desteklenmiyor")
+        raise srv.tr.TalklineError("desteklenmiyor")
 
     monkeypatch.setattr(srv.tr, "load", fail)
     assert srv.get_transcript("https://x") == "HATA: desteklenmiyor"

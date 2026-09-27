@@ -8,10 +8,14 @@
 // sağlam çalışan parçaya (transcript çıkarma) odaklanıldı — özet yerine aranabilir/atlanabilir bir
 // transcript görüntüleyici + kişisel arşiv.
 
+importScripts("migrate.js");
+// Eski "skimcast…" depolama anahtarlarını bir kerelik "talkline…"ya taşı (bkz. migrate.js).
+const legacyMigration = migrateLegacyStorage();
+
 const BLOCK_SECONDS = 30;
 const MIN_PAGE_CHARS = 300;
 
-class SkimError extends Error {}
+class TalklineError extends Error {}
 
 function fmtTime(sec) {
   sec = Math.floor(sec);
@@ -43,9 +47,9 @@ async function fetchText(url) {
   try {
     res = await fetch(url, { headers: { "User-Agent": "talkline-extension/0.1" } });
   } catch (e) {
-    throw new SkimError(`Bağlantı kurulamadı (${url.slice(0, 60)}…): ${e.message}`);
+    throw new TalklineError(`Bağlantı kurulamadı (${url.slice(0, 60)}…): ${e.message}`);
   }
-  if (!res.ok) throw new SkimError(`Bağlantı kurulamadı (${url.slice(0, 60)}…): HTTP ${res.status}`);
+  if (!res.ok) throw new TalklineError(`Bağlantı kurulamadı (${url.slice(0, 60)}…): HTTP ${res.status}`);
   return res.text();
 }
 
@@ -167,7 +171,7 @@ async function fromYoutubeDirect(videoId, langs) {
   }
   const tracks = player.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
   const track = pickCaptionTrack(tracks, langs);
-  if (!track) throw new SkimError("Bu videoda altyazı yok.");
+  if (!track) throw new TalklineError("Bu videoda altyazı yok.");
   const segs = parseCaptionXml(await fetchText(track.baseUrl.replace("&fmt=srv3", "")));
   if (!segs.length) throw new Error("Altyazı boş geldi.");
   const blocks = blocksWithWords(segs);
@@ -187,8 +191,8 @@ async function fromYoutube(url, langs) {
   try {
     return await fromYoutubeDirect(youtubeId(url), langs);
   } catch (e) {
-    if (e instanceof SkimError) throw e;
-    throw new SkimError(`YouTube altyazısı alınamadı: ${e.message}`);
+    if (e instanceof TalklineError) throw e;
+    throw new TalklineError(`YouTube altyazısı alınamadı: ${e.message}`);
   }
 }
 
@@ -267,9 +271,9 @@ function parsePodcastJson(text) {
 
 async function rssItem(feedUrl, audioHint, titleHint) {
   const xml = new DOMParser().parseFromString(await fetchText(feedUrl), "application/xml");
-  if (xml.querySelector("parsererror")) throw new SkimError("RSS okunamadı (bozuk XML).");
+  if (xml.querySelector("parsererror")) throw new TalklineError("RSS okunamadı (bozuk XML).");
   const items = [...xml.querySelectorAll("channel > item")];
-  if (!items.length) throw new SkimError("RSS'te bölüm bulunamadı.");
+  if (!items.length) throw new TalklineError("RSS'te bölüm bulunamadı.");
   const norm = (u) => (u || "").split("?")[0];
   if (audioHint || titleHint) {
     for (const it of items) {
@@ -278,7 +282,7 @@ async function rssItem(feedUrl, audioHint, titleHint) {
       if ((audioHint && enc && norm(enc.getAttribute("url")) === norm(audioHint)) ||
           (titleHint && t === titleHint.trim())) return it;
     }
-    throw new SkimError("Linkteki bölüm RSS'te bulunamadı (çok eski olabilir).");
+    throw new TalklineError("Linkteki bölüm RSS'te bulunamadı (çok eski olabilir).");
   }
   return items[0]; // en yeni bölüm
 }
@@ -302,7 +306,7 @@ async function fromFeed(feedUrl, audioHint, titleHint) {
       if (segs.length) return { title, method: `podcast-transcript-etiketi (${type})`, segments: segs, duration: 0, linkPrefix: "", timestamps: true };
     } catch { /* bu etiket olmadı, sıradakini dene */ }
   }
-  throw new SkimError("Bu bölümde hazır transcript etiketi yok. (Uzantı sürümü sesi deşifre edemez; " +
+  throw new TalklineError("Bu bölümde hazır transcript etiketi yok. (Uzantı sürümü sesi deşifre edemez; " +
     "Claude Code + Talkline eklentisi bunu whisper ile yapabilir.)");
 }
 
@@ -317,7 +321,7 @@ async function fromApple(url) {
   const episodes = results.filter((r) => r.wrapperType === "podcastEpisode");
   const chosen = ep ? episodes.find((r) => String(r.trackId) === ep) : episodes[0];
   if (!feed || !chosen) {
-    throw new SkimError(!ep || !episodes.length ? "Apple Podcasts kaydı bulunamadı." :
+    throw new TalklineError(!ep || !episodes.length ? "Apple Podcasts kaydı bulunamadı." :
       "Linkteki bölüm Apple'ın döndürdüğü son 200 bölüm içinde yok; podcast'in RSS linkini deneyin.");
   }
   return fromFeed(feed, chosen.episodeUrl, chosen.trackName);
@@ -329,7 +333,7 @@ async function fromWebpage(url) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   doc.querySelectorAll("script,style,nav,header,footer,aside,noscript").forEach((e) => e.remove());
   const text = (doc.body?.innerText || "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-  if (text.length < MIN_PAGE_CHARS) throw new SkimError("Sayfadan okunabilir metin çıkarılamadı (giriş gerektiriyor olabilir).");
+  if (text.length < MIN_PAGE_CHARS) throw new TalklineError("Sayfadan okunabilir metin çıkarılamadı (giriş gerektiriyor olabilir).");
   const title = doc.querySelector("title")?.textContent?.trim() || "";
   return { title, method: "web-sayfası", segments: [[0, text]], duration: 0, linkPrefix: "", timestamps: false };
 }
@@ -340,9 +344,9 @@ const APPLE_RE = /podcasts\.apple\.com\/.*?\/id\d+/;
 
 async function getTranscript(target, langs) {
   let host;
-  try { host = new URL(target).hostname.toLowerCase(); } catch { throw new SkimError("Geçerli bir link (http…) girin."); }
+  try { host = new URL(target).hostname.toLowerCase(); } catch { throw new TalklineError("Geçerli bir link (http…) girin."); }
   if (host.includes("spotify.com")) {
-    throw new SkimError("Spotify içeriği korumalıdır (DRM) ve desteklenmez. Aynı podcast'in Apple Podcasts veya RSS linkini kullanın.");
+    throw new TalklineError("Spotify içeriği korumalıdır (DRM) ve desteklenmez. Aynı podcast'in Apple Podcasts veya RSS linkini kullanın.");
   }
   if (youtubeId(target)) return fromYoutube(target, langs);
   if (APPLE_RE.test(target)) return fromApple(target);
@@ -350,7 +354,7 @@ async function getTranscript(target, langs) {
   try {
     return await fromWebpage(target);
   } catch (e) {
-    throw e instanceof SkimError ? e : new SkimError(String(e.message || e));
+    throw e instanceof TalklineError ? e : new TalklineError(String(e.message || e));
   }
 }
 
@@ -409,14 +413,15 @@ function parseTimedBlocks(text) {
   return blocks;
 }
 
-const archiveKey = (id) => `skimcastArchive:${id}`;
-const ARCHIVE_INDEX_KEY = "skimcastArchiveIndex";
+const archiveKey = (id) => `talklineArchive:${id}`;
+const ARCHIVE_INDEX_KEY = "talklineArchiveIndex";
 
 // Arşiv iki parçada tutulur: her kayıt kendi anahtarında (tam metin, olası büyük), ve hafif bir dizin
-// (skimcastArchiveIndex) sadece kütüphane sayfasını hızlıca doldurmak için. Aynı video/link tekrar
+// (talklineArchiveIndex) sadece kütüphane sayfasını hızlıca doldurmak için. Aynı video/link tekrar
 // getirilirse (stableId aynı çıkar) kayıt GÜNCELLENİR — ama kullanıcının o kayda eklediği şeyler
 // (favoriler, etiketler, not, sabitleme) korunur, sadece transcript/meta tazelenir.
 async function saveToArchive(id, url, meta, blocks) {
+  await legacyMigration; // eski kayıt henüz taşınmadıysa favorileri/notları görülmeden üzerine yazılmasın
   const prevKey = archiveKey(id);
   const { [prevKey]: prev } = await chrome.storage.local.get(prevKey);
   const entry = { ...prev, id, url, meta, blocks, ts: Date.now() };
@@ -486,7 +491,7 @@ async function fetchAndOpen(url) {
     const match = tabs.find((tab) => youtubeId(tab.url || "") === ytId);
     if (match) {
       try {
-        await chrome.tabs.sendMessage(match.id, { type: "skimcast-refresh-panel", videoId: ytId });
+        await chrome.tabs.sendMessage(match.id, { type: "talkline-refresh-panel", videoId: ytId });
         await chrome.tabs.update(match.id, { active: true });
         return meta;
       } catch { /* içerik betiği yok/yanıt vermedi (ör. sekme çok eski) — sekmede aç */ }
@@ -503,7 +508,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       const meta = await fetchAndOpen(msg.url);
       sendResponse({ ok: true, meta });
     } catch (e) {
-      sendResponse({ ok: false, error: e instanceof SkimError ? e.message : `Beklenmeyen hata: ${e.message || e}` });
+      sendResponse({ ok: false, error: e instanceof TalklineError ? e.message : `Beklenmeyen hata: ${e.message || e}` });
     }
   })();
   return true; // asenkron yanıt
@@ -517,17 +522,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 const syncViewerTabs = new Map(); // tabId -> videoId
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg?.type === "skimcast-register-viewer") {
+  if (msg?.type === "talkline-register-viewer") {
     if (sender.tab?.id != null) {
       if (msg.videoId) syncViewerTabs.set(sender.tab.id, msg.videoId);
       else syncViewerTabs.delete(sender.tab.id);
     }
     return;
   }
-  if (msg?.type === "skimcast-time-update" && msg.videoId) {
+  if (msg?.type === "talkline-time-update" && msg.videoId) {
     for (const [tabId, videoId] of syncViewerTabs) {
       if (videoId === msg.videoId) {
-        chrome.tabs.sendMessage(tabId, { type: "skimcast-time-sync", currentTime: msg.currentTime }).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: "talkline-time-sync", currentTime: msg.currentTime }).catch(() => {});
       }
     }
   }
@@ -540,13 +545,13 @@ chrome.tabs.onRemoved.addListener((tabId) => { syncViewerTabs.delete(tabId); });
 // düğmesine basıldığında) bunu çağırır — fetchAndOpen'dan farkı: hiçbir sekme açmaz, sadece getirip
 // arşive kaydeder; panel sonra kendi içine (iframe) yükler.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== "skimcast-fetch-silent") return;
+  if (msg?.type !== "talkline-fetch-silent") return;
   (async () => {
     try {
       const { id } = await fetchOnly(msg.url);
       sendResponse({ ok: true, id });
     } catch (e) {
-      sendResponse({ ok: false, error: e instanceof SkimError ? e.message : `Beklenmeyen hata: ${e.message || e}` });
+      sendResponse({ ok: false, error: e instanceof TalklineError ? e.message : `Beklenmeyen hata: ${e.message || e}` });
     }
   })();
   return true;
@@ -556,11 +561,11 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 // Popup'ı açıp linki yapıştırmaya gerek kalmadan, bir videoya/linke sağ tıklayıp doğrudan getirmek için.
 // Menü başlığı kullanıcının seçtiği arayüz diline göre (lang.js'in kullandığı aynı _locales/<dil>/
 // messages.json dosyalarından) oluşturuluyor; dil değişirse menü de tazeleniyor.
-const CONTEXT_MENU_ID = "skimcast-fetch";
+const CONTEXT_MENU_ID = "talkline-fetch";
 
 async function contextMenuTitle() {
-  const { skimcastUiLang } = await chrome.storage.local.get("skimcastUiLang");
-  const lang = skimcastUiLang || (chrome.i18n.getUILanguage().split("-")[0] === "tr" ? "tr" : "en");
+  const { talklineUiLang } = await chrome.storage.local.get("talklineUiLang");
+  const lang = talklineUiLang || (chrome.i18n.getUILanguage().split("-")[0] === "tr" ? "tr" : "en");
   try {
     const res = await fetch(chrome.runtime.getURL(`_locales/${lang}/messages.json`));
     const data = await res.json();
@@ -580,7 +585,7 @@ async function setupContextMenu() {
 chrome.runtime.onInstalled.addListener(setupContextMenu);
 chrome.runtime.onStartup.addListener(setupContextMenu);
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.skimcastUiLang) setupContextMenu();
+  if (area === "local" && changes.talklineUiLang) setupContextMenu();
 });
 
 chrome.contextMenus.onClicked.addListener(async (info) => {
@@ -596,7 +601,7 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
   } catch (e) {
     chrome.notifications.create({
       type: "basic", iconUrl: "icons/icon128.png",
-      title: "Talkline", message: e instanceof SkimError ? e.message : `Beklenmeyen hata: ${e.message || e}`,
+      title: "Talkline", message: e instanceof TalklineError ? e.message : `Beklenmeyen hata: ${e.message || e}`,
     });
   }
 });
