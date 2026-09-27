@@ -179,12 +179,12 @@ function progressBadgeHtml(e) {
 }
 
 function entryRowHtml(e, folders) {
-  const metaLine = [e.method, e.duration].filter(Boolean).join(" · ");
+  const metaLine = e.duration || ""; // "youtube-altyazı (tr, elle)" gibi iç etiket gösterilmiyor (hep Türkçe, teknik)
   return `
     <div class="row${e.pinned ? " pinned-row" : ""}" data-id="${escapeHtml(e.id)}">
       <div class="row-main">
         <a class="title" href="viewer.html?id=${encodeURIComponent(e.id)}">${escapeHtml(e.title || "(başlıksız)")}</a>
-        <div class="row-meta">${escapeHtml(metaLine)} · ${escapeHtml(relativeDate(e.ts))}</div>
+        <div class="row-meta">${escapeHtml([metaLine, relativeDate(e.ts)].filter(Boolean).join(" · "))}</div>
         ${folderSelectHtml(e, folders)}
         ${progressBadgeHtml(e)}
       </div>
@@ -650,7 +650,7 @@ async function init() {
           <div class="row">
             <div class="row-main">
               <a class="title" href="viewer.html?id=${encodeURIComponent(r.meta.id)}&q=${encodeURIComponent(query)}">${escapeHtml(r.meta.title || "(başlıksız)")}</a>
-              <div class="row-meta">${escapeHtml([r.meta.method, r.meta.duration].filter(Boolean).join(" · "))}</div>
+              <div class="row-meta">${escapeHtml(r.meta.duration || "")}</div>
               <div class="snippet">${snippetHtml(r.snippet, query)}</div>
             </div>
           </div>`).join("")
@@ -679,8 +679,8 @@ async function init() {
       const records = await chrome.storage.local.get(videos.map((v) => archiveKey(v.id)));
       for (const v of videos) {
         const url = records[archiveKey(v.id)]?.url || "";
-        const meta = [v.method, v.duration].filter(Boolean).join(" · ");
-        md += url ? `- [${v.title || "(başlıksız)"}](${url}) — ${meta}\n` : `- ${v.title || "(başlıksız)"} — ${meta}\n`;
+        const meta = v.duration ? ` — ${v.duration}` : "";
+        md += url ? `- [${v.title || "(başlıksız)"}](${url})${meta}\n` : `- ${v.title || "(başlıksız)"}${meta}\n`;
       }
       md += "\n";
     }
