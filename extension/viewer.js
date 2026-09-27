@@ -685,7 +685,7 @@ async function init() {
     };
     addLine(meta.title || "", 16, 6);
     doc.setTextColor(110, 110, 115);
-    addLine([meta.method, meta.duration].filter(Boolean).join(" · "), 10, 14);
+    addLine(meta.duration || "", 10, 14);
     doc.setTextColor(29, 29, 31);
     blocks.forEach((b, i) => {
       const prefix = includeTimestamps && b.sec != null ? `[${fmtTime(b.sec)}] ` : "";
