@@ -35,7 +35,7 @@ APPLE = re.compile(r"podcasts\.apple\.com/.*?/id(\d+)")
 FEED = re.compile(r"(\.xml|\.rss|/feed|/rss)(/|\?|$)", re.IGNORECASE)
 
 
-VENV = Path.home() / ".cache" / "skimcast" / "venv"
+VENV = Path.home() / ".cache" / "talkline" / "venv"
 
 
 def bootstrap(extra: tuple = ()) -> None:
@@ -45,9 +45,9 @@ def bootstrap(extra: tuple = ()) -> None:
     import subprocess
 
     tag = ",".join(extra) or "temel"
-    tried = os.environ.get("SKIMCAST_BOOTSTRAPPED", "").split(";")
+    tried = os.environ.get("TALKLINE_BOOTSTRAPPED", "").split(";")
     if tag in tried:
-        raise SkimError("Gerekli paketler kurulamadı. Elle deneyin: "
+        raise TalklineError("Gerekli paketler kurulamadı. Elle deneyin: "
                         f"{sys.executable} -m pip install -r {Path(__file__).with_name('requirements.txt')} {' '.join(extra)}")
 
     note("Gerekli paketler kuruluyor (bir kerelik, ~1 dk)…")
@@ -59,12 +59,12 @@ def bootstrap(extra: tuple = ()) -> None:
         subprocess.run([str(py), "-m", "pip", "install", "-q", "--disable-pip-version-check", "-r", str(req), *extra],
                        check=True, stdout=sys.stderr)
     except (subprocess.CalledProcessError, OSError) as e:
-        raise SkimError(f"Paket kurulumu başarısız ({e}). İnternet bağlantınızı kontrol edin.") from e
-    os.environ["SKIMCAST_BOOTSTRAPPED"] = ";".join([*tried, tag])
+        raise TalklineError(f"Paket kurulumu başarısız ({e}). İnternet bağlantınızı kontrol edin.") from e
+    os.environ["TALKLINE_BOOTSTRAPPED"] = ";".join([*tried, tag])
     os.execv(str(py), [str(py), str(Path(sys.argv[0]).resolve()), *sys.argv[1:]])  # başlatan betik (transcript.py ya da mcp_server.py)
 
 
-class SkimError(Exception):
+class TalklineError(Exception):
     """Kullanıcıya olduğu gibi gösterilen, anlaşılır hata."""
 
 
@@ -109,7 +109,7 @@ def fetch(url: str, retries: int = 3) -> str:
         except OSError as e:
             permanent = isinstance(e, urllib.error.HTTPError) and e.code < 500 and e.code != 429
             if permanent or attempt == retries - 1:
-                raise SkimError(f"Bağlantı kurulamadı ({url[:60]}…): {e}") from e
+                raise TalklineError(f"Bağlantı kurulamadı ({url[:60]}…): {e}") from e
             time.sleep(2**attempt)
     raise AssertionError("ulaşılamaz")
 
@@ -203,14 +203,14 @@ def from_youtube(video_id: str, langs: list) -> Transcript:
 
     track = _pick_track(list(YouTubeTranscriptApi().list(video_id)), langs)
     if track is None:
-        raise SkimError("Bu videoda altyazı yok.")
+        raise TalklineError("Bu videoda altyazı yok.")
     segs = [(s.start, s.text) for s in track.fetch()]
     kind = "otomatik" if track.is_generated else "elle"
     title = ""
     try:
         oembed = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
         title = json.loads(fetch(oembed, retries=2)).get("title", "")
-    except (SkimError, ValueError):
+    except (TalklineError, ValueError):
         pass
     duration = segs[-1][0] if segs else 0.0  # yaklaşık: son altyazının başlangıcı
     return Transcript(
@@ -257,7 +257,7 @@ def _rss_item(feed_url: str, audio_hint, title_hint, index: int):
     root = ET.fromstring(fetch(feed_url))
     items = root.findall("./channel/item")
     if not items:
-        raise SkimError("RSS'te bölüm bulunamadı.")
+        raise TalklineError("RSS'te bölüm bulunamadı.")
     norm = lambda u: (u or "").split("?")[0]
     for it in items:
         enc = it.find("enclosure")
@@ -266,10 +266,10 @@ def _rss_item(feed_url: str, audio_hint, title_hint, index: int):
         ):
             return it
     if audio_hint or title_hint:
-        raise SkimError("Linkteki bölüm RSS'te bulunamadı (çok eski olabilir). Podcast'in RSS linkini "
+        raise TalklineError("Linkteki bölüm RSS'te bulunamadı (çok eski olabilir). Podcast'in RSS linkini "
                         "ve --episode N ile deneyin.")
     if index >= len(items):
-        raise SkimError(f"RSS'te yalnızca {len(items)} bölüm var.")
+        raise TalklineError(f"RSS'te yalnızca {len(items)} bölüm var.")
     return items[index]
 
 
@@ -288,11 +288,11 @@ def from_feed(feed_url: str, model: str, audio_hint=None, title_hint=None, index
                 segs = [(0.0, body)]
             if segs:
                 return Transcript(title, f"podcast-transcript-etiketi ({tag.get('type')})", segs)
-        except (SkimError, ValueError):
+        except (TalklineError, ValueError):
             continue
     enc = item.find("enclosure")
     if enc is None or not enc.get("url"):
-        raise SkimError("Bu bölümde ses dosyası bulunamadı.")
+        raise TalklineError("Bu bölümde ses dosyası bulunamadı.")
     return whisper(enc.get("url"), model, title, 0.0)
 
 
@@ -307,7 +307,7 @@ def from_apple(url: str, model: str) -> Transcript:
     episodes = [r for r in results if r.get("wrapperType") == "podcastEpisode"]
     chosen = next((r for r in episodes if str(r.get("trackId")) == ep), None) if ep else next(iter(episodes), None)
     if not feed or not chosen:
-        raise SkimError("Apple Podcasts kaydı bulunamadı." if not ep or not episodes else
+        raise TalklineError("Apple Podcasts kaydı bulunamadı." if not ep or not episodes else
                         "Linkteki bölüm Apple'ın döndürdüğü son 200 bölüm içinde yok; podcast'in RSS linkini deneyin.")
     return from_feed(feed, model, chosen.get("episodeUrl"), chosen.get("trackName"))
 
@@ -318,7 +318,7 @@ def from_webpage(url: str, method: str = "web-sayfası") -> Transcript:
     html = trafilatura.fetch_url(url)
     text = trafilatura.extract(html, include_tables=True) if html else None
     if not text or len(text) < MIN_PAGE_CHARS:  # birkaç satırlık kırıntı gerçek içerik değildir
-        raise SkimError("Sayfadan okunabilir metin çıkarılamadı (giriş gerektiriyor olabilir).")
+        raise TalklineError("Sayfadan okunabilir metin çıkarılamadı (giriş gerektiriyor olabilir).")
     meta = trafilatura.extract_metadata(html)
     return Transcript((meta.title if meta else "") or "", method, [(0.0, text)], 0.0, "", False)
 
@@ -349,7 +349,7 @@ def whisper(source: str, model_size: str, title: str, duration: float) -> Transc
                 note(f"  deşifre: {fmt_time(s.end)} / {fmt_time(info.duration)}")
                 last = s.end
     if not segs:
-        raise SkimError("Seste konuşma bulunamadı (müzik/ortam sesi olabilir); özetlenecek metin yok.")
+        raise TalklineError("Seste konuşma bulunamadı (müzik/ortam sesi olabilir); özetlenecek metin yok.")
     return Transcript(title, f"whisper-{model_size}", segs, float(info.duration))
 
 
@@ -357,10 +357,10 @@ def get_transcript(target: str, langs: list, model: str, episode: int) -> Transc
     if Path(target).expanduser().is_file():
         return whisper(str(Path(target).expanduser()), model, Path(target).stem, 0.0)
     if not re.match(r"https?://", target):
-        raise SkimError("Geçerli bir link (http…) ya da var olan bir dosya yolu verin.")
+        raise TalklineError("Geçerli bir link (http…) ya da var olan bir dosya yolu verin.")
     host = urllib.parse.urlparse(target).netloc.lower()
     if "spotify.com" in host:
-        raise SkimError(
+        raise TalklineError(
             "Spotify içeriği korumalıdır (DRM) ve desteklenmez. Aynı podcast'in Apple Podcasts "
             "veya RSS linkini kullanın."
         )
@@ -369,7 +369,7 @@ def get_transcript(target: str, langs: list, model: str, episode: int) -> Transc
         try:
             return from_youtube(vid, langs)
         except Exception as e:
-            if isinstance(e, SkimError) and "altyazı yok" not in str(e):
+            if isinstance(e, TalklineError) and "altyazı yok" not in str(e):
                 raise
             note(f"YouTube altyazısı alınamadı ({type(e).__name__}); yt-dlp deneniyor…")
     if APPLE.search(target):
@@ -378,7 +378,7 @@ def get_transcript(target: str, langs: list, model: str, episode: int) -> Transc
         return from_feed(target, model, index=episode)
     try:
         return from_ytdlp(target, langs, model)
-    except SkimError:
+    except TalklineError:
         raise
     except Exception as e:  # noqa: BLE001 - yt-dlp hata türleri çeşitli
         # Medya bulunamadı (ör. makale sayfası ya da yt-dlp'nin o siteyi çözemediği durum):
@@ -386,10 +386,10 @@ def get_transcript(target: str, langs: list, model: str, episode: int) -> Transc
         note(f"Sayfada video/ses alınamadı ({str(e).splitlines()[0][:80]}); sayfa metni deneniyor…")
         try:
             return from_webpage(target, "web-sayfası (medya alınamadı: BU VİDEO/SES TRANSKRİPTİ DEĞİL)")
-        except SkimError:
+        except TalklineError:
             reason = str(e).splitlines()[0][:200]
             hint = "" if "404" in reason else f". yt-dlp eski olabilir: {VENV}/bin/pip install -U yt-dlp"
-            raise SkimError(f"İçerik alınamadı: {reason}{hint}") from e
+            raise TalklineError(f"İçerik alınamadı: {reason}{hint}") from e
 
 
 # ---------------------------------------------------------------- çıktı
@@ -451,7 +451,7 @@ def load(target: str, langs: list, model: str, episode: int, fresh: bool = False
     """Önbelleğe bakar, yoksa transcript'i alıp yazar; (meta, metin) döndürür."""
     vid = youtube_id(target)
     key = f"{'yt:' + vid if vid else target}|{episode}|{','.join(langs)}|{model}"
-    out = Path(tempfile.gettempdir()) / "skimcast" / hashlib.sha1(key.encode()).hexdigest()[:12]
+    out = Path(tempfile.gettempdir()) / "talkline" / hashlib.sha1(key.encode()).hexdigest()[:12]
     if not fresh and (out / "meta.json").exists() and (out / "transcript.txt").exists():
         meta = json.loads((out / "meta.json").read_text(encoding="utf-8"))
         if all(Path(f).exists() for f in meta["parts"]):  # geçici klasör temizlenmiş olabilir
@@ -475,14 +475,14 @@ def main(argv=None) -> int:
     except ImportError:
         try:
             bootstrap()
-        except SkimError as e:
+        except TalklineError as e:
             print(f"HATA: {e}", file=sys.stderr)
             return 2
     langs = [x.strip().split("-")[0] for x in a.lang.split(",") if x.strip()]
     try:
         print_result(*load(a.target, langs, a.whisper_model, a.episode, a.fresh))
         return 0
-    except SkimError as e:
+    except TalklineError as e:
         print(f"HATA: {e}", file=sys.stderr)
         return 2
     except Exception as e:  # noqa: BLE001 - kullanıcı traceback yerine kısa mesaj görsün

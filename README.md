@@ -15,7 +15,7 @@
 /plugin install talkline@talkline
 ```
 
-The first run installs its own dependencies into a private virtualenv (`~/.cache/skimcast`, ~1 min, once). Your system Python is never touched. Needs Python 3.10+ (tested on 3.12 and 3.14).
+The first run installs its own dependencies into a private virtualenv (`~/.cache/talkline`, ~1 min, once). Your system Python is never touched. Needs Python 3.10+ (tested on 3.12 and 3.14).
 
 ## What it can read
 

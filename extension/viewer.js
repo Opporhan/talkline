@@ -44,7 +44,7 @@ const isEmbedded = window !== window.top;
 
 function jumpTo(url, sec) {
   if (isEmbedded && sec != null) {
-    window.parent.postMessage({ type: "skimcast-seek", sec }, "*");
+    window.parent.postMessage({ type: "talkline-seek", sec }, "*");
     return;
   }
   chrome.tabs.create({ url, active: true });
@@ -128,7 +128,7 @@ async function init() {
   const app = document.getElementById("app");
   const id = new URLSearchParams(location.search).get("id");
   if (!id) { app.innerHTML = `<p class="error">${t("error_no_result")}</p>`; return; }
-  const key = `skimcastArchive:${id}`;
+  const key = `talklineArchive:${id}`;
 
   const entry = (await chrome.storage.local.get(key))[key];
   if (!entry) { app.innerHTML = `<p class="error">${t("error_result_not_found")}</p>`; return; }
@@ -226,11 +226,11 @@ async function init() {
 
   // Bu videoya/bölüme dair genel bir not — tek bir favori/satırla değil, videonun tamamıyla ilgili
   // ("özet", "sonra tekrar bak" gibi kişisel notlar). ÜÇ AYRI not kavramı (video notu / favori notu /
-  // serbest not) kafa karıştırıyordu — artık HEPSİ aynı paylaşılan depoda (skimcastNotes, Notlarım
+  // serbest not) kafa karıştırıyordu — artık HEPSİ aynı paylaşılan depoda (talklineNotes, Notlarım
   // sekmesinde görünen liste): bu, o depodaki "videoId'si bu videoya eşit, satıra bağlı olmayan
   // (sourceKey yok)" tek kaydı okuyup/yazıyor. Yani burada yazdığın şey zaten Notlarım'da — ayrıca
   // "taşımana" gerek yok.
-  const NOTES_KEY = "skimcastNotes";
+  const NOTES_KEY = "talklineNotes";
   async function getNotes() {
     const { [NOTES_KEY]: notes = [] } = await chrome.storage.local.get(NOTES_KEY);
     return notes;
@@ -248,7 +248,7 @@ async function init() {
 
   // Geriye dönük uyumluluk: bu özelliğin daha önceki bir sürümünde not entry.videoNote'ta saklanıyordu.
   // Hiç eşleşen paylaşılan not yoksa ama entry.videoNote doluysa, veri kaybı olmasın diye onu kullan —
-  // ilk kayıtta (aşağıdaki input dinleyicisi) zaten düzgün yere (skimcastNotes) taşınmış olacak.
+  // ilk kayıtta (aşağıdaki input dinleyicisi) zaten düzgün yere (talklineNotes) taşınmış olacak.
   const existingVideoNote = (await getNotes()).find((n) => n.videoId === id && !n.sourceKey);
   videoNoteText.value = existingVideoNote?.body ?? entry.videoNote ?? "";
   noteBtn.classList.toggle("active", !!videoNoteText.value.trim());
@@ -528,7 +528,7 @@ async function init() {
     }
 
     chrome.runtime.onMessage.addListener((msg) => {
-      if (msg?.type === "skimcast-time-sync") {
+      if (msg?.type === "talkline-time-sync") {
         clearTimeout(syncWatchdog);
         onTimeSync(msg.currentTime);
       }
@@ -538,17 +538,17 @@ async function init() {
       syncOn = !syncOn;
       syncBtn.classList.toggle("active", syncOn);
       if (syncOn) {
-        chrome.runtime.sendMessage({ type: "skimcast-register-viewer", videoId: ytVideoId }).catch(() => {});
+        chrome.runtime.sendMessage({ type: "talkline-register-viewer", videoId: ytVideoId }).catch(() => {});
         armSyncWatchdog();
       } else {
         clearSyncHighlight();
         clearTimeout(syncWatchdog);
-        chrome.runtime.sendMessage({ type: "skimcast-register-viewer", videoId: null }).catch(() => {});
+        chrome.runtime.sendMessage({ type: "talkline-register-viewer", videoId: null }).catch(() => {});
       }
     });
 
     window.addEventListener("beforeunload", () => {
-      if (syncOn) chrome.runtime.sendMessage({ type: "skimcast-register-viewer", videoId: null }).catch(() => {});
+      if (syncOn) chrome.runtime.sendMessage({ type: "talkline-register-viewer", videoId: null }).catch(() => {});
     });
 
     // YouTube kenar panelinde (iframe içinde) açıkken senkron takibin zaten AMACI bu — elle "🔗"ye
@@ -608,7 +608,7 @@ async function init() {
   // kütüphanedeki "Devam Et" rozetiyle AYNI veriyi (entry.lastReadIndex) kullanıyor. Kaydırma
   // pozisyonunu periyodik (debounce'lu) kaydediyoruz; en baştaysan ya da sona geldiysen "devam etmenin"
   // bir anlamı yok, ilerlemeyi o durumda temizliyoruz. Kütüphanenin (her videoyu tek tek açmadan "devam
-  // et" gösterebilmesi için) hafif dizinine (skimcastArchiveIndex) da bir yüzde aynası bırakıyoruz.
+  // et" gösterebilmesi için) hafif dizinine (talklineArchiveIndex) da bir yüzde aynası bırakıyoruz.
   if (!initialQuery && entry.lastReadIndex != null && rows[entry.lastReadIndex]) {
     rows[entry.lastReadIndex].scrollIntoView({ block: "center" });
     showToast(t("resume_toast"));
@@ -632,9 +632,9 @@ async function init() {
       entry.lastReadTs = meaningful ? Date.now() : undefined;
       await persistHighlights();
       const progressPercent = meaningful ? Math.round((idx / (rows.length - 1)) * 100) : undefined;
-      const { skimcastArchiveIndex: idxList = [] } = await chrome.storage.local.get("skimcastArchiveIndex");
+      const { talklineArchiveIndex: idxList = [] } = await chrome.storage.local.get("talklineArchiveIndex");
       await chrome.storage.local.set({
-        skimcastArchiveIndex: idxList.map((e) => (e.id === id ? { ...e, progressPercent } : e)),
+        talklineArchiveIndex: idxList.map((e) => (e.id === id ? { ...e, progressPercent } : e)),
       });
     }, 1200);
   }, { passive: true });
@@ -726,8 +726,8 @@ async function init() {
   });
 
   // ------------------------------------------------------------ dosyaya taşı
-  const FOLDERS_KEY = "skimcastFolders";
-  const ARCHIVE_INDEX_KEY = "skimcastArchiveIndex";
+  const FOLDERS_KEY = "talklineFolders";
+  const ARCHIVE_INDEX_KEY = "talklineArchiveIndex";
 
   async function getFolders() {
     const { [FOLDERS_KEY]: folders = [] } = await chrome.storage.local.get(FOLDERS_KEY);
@@ -820,7 +820,7 @@ async function init() {
     const ttsStopBtn = document.getElementById("ttsStopBtn");
     let ttsState = "idle"; // idle | playing | paused
     let ttsVoices = [];
-    const TTS_VOICE_KEY_PREFIX = "skimcastTtsVoice:";
+    const TTS_VOICE_KEY_PREFIX = "talklineTtsVoice:";
 
     // getVoices() ilk çağrıda genelde boş dizi döndürüyor, ses listesi asenkron yükleniyor.
     function getVoicesAsync() {

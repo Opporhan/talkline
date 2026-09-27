@@ -1,7 +1,7 @@
 /* Talkline (uzantı): YouTube izleme sayfasına enjekte edilen kenar paneli (youtube_sync.js tarafından
-   oluşturuluyor). YouTube'un kendi CSS'ini bozmamak için her şeyi #skimcast-sidebar-panel altında,
+   oluşturuluyor). YouTube'un kendi CSS'ini bozmamak için her şeyi #talkline-sidebar-panel altında,
    olabildiğince az varsayımla (YouTube'un kendi font/renk sınıflarına bağımlı olmadan) tanımlıyoruz. */
-#skimcast-sidebar-panel {
+#talkline-sidebar-panel {
   display: flex;
   flex-direction: column;
   margin-bottom: 12px;
@@ -15,9 +15,9 @@
   max-height: 900px;
 }
 @media (prefers-color-scheme: dark) {
-  #skimcast-sidebar-panel { background: #0f0f0f; border-color: rgba(255, 255, 255, .15); }
+  #talkline-sidebar-panel { background: #0f0f0f; border-color: rgba(255, 255, 255, .15); }
 }
-#skimcast-sidebar-panel .skimcast-sb-header {
+#talkline-sidebar-panel .talkline-sb-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -28,9 +28,9 @@
   flex-shrink: 0;
 }
 @media (prefers-color-scheme: dark) {
-  #skimcast-sidebar-panel .skimcast-sb-header { color: #fff; border-color: rgba(255, 255, 255, .12); }
+  #talkline-sidebar-panel .talkline-sb-header { color: #fff; border-color: rgba(255, 255, 255, .12); }
 }
-#skimcast-sidebar-panel .skimcast-sb-toggle {
+#talkline-sidebar-panel .talkline-sb-toggle {
   border: none;
   background: none;
   cursor: pointer;
@@ -39,19 +39,19 @@
   opacity: .6;
   padding: 2px 6px;
 }
-#skimcast-sidebar-panel .skimcast-sb-toggle:hover { opacity: 1; }
-#skimcast-sidebar-panel .skimcast-sb-body {
+#talkline-sidebar-panel .talkline-sb-toggle:hover { opacity: 1; }
+#talkline-sidebar-panel .talkline-sb-body {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
-#skimcast-sidebar-panel iframe {
+#talkline-sidebar-panel iframe {
   flex: 1;
   width: 100%;
   border: none;
 }
-#skimcast-sidebar-panel .skimcast-sb-cta {
+#talkline-sidebar-panel .talkline-sb-cta {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -61,15 +61,15 @@
   padding: 24px;
   text-align: center;
 }
-#skimcast-sidebar-panel .skimcast-sb-cta p {
+#talkline-sidebar-panel .talkline-sb-cta p {
   margin: 0;
   font: 400 13px/1.4 Roboto, Arial, sans-serif;
   color: #606060;
 }
 @media (prefers-color-scheme: dark) {
-  #skimcast-sidebar-panel .skimcast-sb-cta p { color: #aaa; }
+  #talkline-sidebar-panel .talkline-sb-cta p { color: #aaa; }
 }
-#skimcast-sidebar-panel .skimcast-sb-cta button {
+#talkline-sidebar-panel .talkline-sb-cta button {
   border: none;
   border-radius: 18px;
   padding: 9px 20px;
@@ -78,29 +78,29 @@
   color: #fff;
   cursor: pointer;
 }
-#skimcast-sidebar-panel .skimcast-sb-cta button:disabled { opacity: .6; cursor: default; }
+#talkline-sidebar-panel .talkline-sb-cta button:disabled { opacity: .6; cursor: default; }
 @media (prefers-color-scheme: dark) {
-  #skimcast-sidebar-panel .skimcast-sb-cta button { background: #fff; color: #0f0f0f; }
+  #talkline-sidebar-panel .talkline-sb-cta button { background: #fff; color: #0f0f0f; }
 }
-#skimcast-sidebar-panel .skimcast-sb-status { color: #cc0000 !important; }
-#skimcast-sidebar-panel.skimcast-collapsed { height: auto; min-height: 0; max-height: none; }
-#skimcast-sidebar-panel.skimcast-collapsed .skimcast-sb-body { display: none; }
+#talkline-sidebar-panel .talkline-sb-status { color: #cc0000 !important; }
+#talkline-sidebar-panel.talkline-collapsed { height: auto; min-height: 0; max-height: none; }
+#talkline-sidebar-panel.talkline-collapsed .talkline-sb-body { display: none; }
 
 /* Yedek düğme: sağ sütun (#secondary) hiç bulunamazsa (YouTube'un sayfa yapısı değişmiş olabilir)
    devreye giriyor. document.body'ye ekleniyor — hiçbir YouTube-özel elemente bağımlı değil, bu yüzden
    YouTube ne kadar değişirse değişsin her zaman görünür kalır. */
-#skimcast-fallback-btn {
+#talkline-fallback-btn {
   position: fixed; bottom: 16px; right: 16px; z-index: 2147483647;
   border: none; border-radius: 22px; padding: 10px 16px;
   font: 600 13px Roboto, Arial, sans-serif; background: #0f0f0f; color: #fff;
   box-shadow: 0 2px 10px rgba(0, 0, 0, .3); cursor: pointer;
 }
-#skimcast-fallback-btn:hover { filter: brightness(1.15); }
-#skimcast-fallback-btn:disabled { opacity: .6; cursor: default; }
+#talkline-fallback-btn:hover { filter: brightness(1.15); }
+#talkline-fallback-btn:disabled { opacity: .6; cursor: default; }
 @media (prefers-color-scheme: dark) {
-  #skimcast-fallback-btn { background: #fff; color: #0f0f0f; }
+  #talkline-fallback-btn { background: #fff; color: #0f0f0f; }
 }
 
 /* Oynatıcı kontrol çubuğundaki düğme (sağ alt). Boyutu/hizası YouTube'un kendi .ytp-button sınıfından. */
-#skimcast-player-btn { display: inline-flex; align-items: center; justify-content: center; }
-#skimcast-player-btn svg { display: block; flex-shrink: 0; }
+#talkline-player-btn { display: inline-flex; align-items: center; justify-content: center; }
+#talkline-player-btn svg { display: block; flex-shrink: 0; }

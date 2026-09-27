@@ -1,8 +1,8 @@
 // Talkline (uzantı): theme.js — açık/koyu temayı sayfalar arasında ortak uygular. popup, viewer ve
-// library sayfalarının hepsi bunu yükler; chrome.storage.local'deki tek bir tercih (skimcastTheme)
+// library sayfalarının hepsi bunu yükler; chrome.storage.local'deki tek bir tercih (talklineTheme)
 // hepsinde aynı anda geçerli olur. İlk açılışta sistem tercihine göre başlar, sonrasında düğmeyle
 // elle değiştirilen sabit bir seçimdir (otomatik sistem takibi yok — bilinçli olarak sade tutuldu).
-const THEME_KEY = "skimcastTheme"; // "light" | "dark"
+const THEME_KEY = "talklineTheme"; // "light" | "dark"
 
 function systemDefault() {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";

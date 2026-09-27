@@ -15,7 +15,7 @@
 /plugin install talkline@talkline
 ```
 
-İlk çalıştırmada gerekli paketler özel bir sanal ortama kurulur (`~/.cache/skimcast`, ~1 dk, tek sefer). Sistem Python'una dokunulmaz. Python 3.10+ gerekir (3.12 ve 3.14'te denendi).
+İlk çalıştırmada gerekli paketler özel bir sanal ortama kurulur (`~/.cache/talkline`, ~1 dk, tek sefer). Sistem Python'una dokunulmaz. Python 3.10+ gerekir (3.12 ve 3.14'te denendi).
 
 ## Ne okuyabilir
 

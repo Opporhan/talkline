@@ -2,18 +2,18 @@
 
 Bu depoda iki AYRI ürün var, ortak kodları yok:
 
-**İsim:** Proje eskiden "skimcast"ti, 2026-09-26'da "Talkline" oldu (plugin: `talkline`). İÇ adlar bilerek
-"skimcast" kaldı ve DEĞİŞTİRİLMEMELİ: uzantının depolama anahtarları (`skimcastArchive:*`, `skimcastNotes`,
-`skimcastFolders`, … — kullanıcı arşivi ve yedek dosyaları bunlara bağlı), DOM id/sınıfları ve mesaj
-türleri (`skimcast-sidebar-panel`, `skimcast-seek` …), plugin'in `~/.cache/skimcast` venv'i ve
-`SKIMCAST_BOOTSTRAPPED` (değişirse herkes paketleri baştan kurar).
+**İsim:** Proje eskiden "skimcast"ti; 2026-09-26/27'de iç adlar dahil HER ŞEY "Talkline"/`talkline` oldu
+(plugin, depolama anahtarları `talklineArchive:*` vb., DOM id'leri, mesaj türleri, `TalklineError`,
+`~/.cache/talkline`). Kullanıcıların eski `skimcast…` depolama anahtarlarını `extension/migrate.js` bir
+kerelik taşıyor (arka plan, sayfalar ve YouTube betiği veriyi okumadan önce çağırır); eski yedek dosyaları
+da geri yüklemede çevriliyor. "skimcast" geçen tek yer bu geçiş kodu olmalı.
 
 ## 1) Claude Code plugin'i (`skills/summarize/`)
 
 link → transcript → zaman damgalı özet. Kod bilinçli olarak **küçük** tutulur.
 
 - `skills/summarize/transcript.py`: tek dosya, transcript aracı. Basamaklı yedek zinciri (YouTube altyazı → podcast etiketi →
-  yt-dlp altyazı → web sayfası → whisper). Eksik paketi özel venv'e (`~/.cache/skimcast/venv`) kendisi kurar.
+  yt-dlp altyazı → web sayfası → whisper). Eksik paketi özel venv'e (`~/.cache/talkline/venv`) kendisi kurar.
 - `skills/summarize/mcp_server.py`: Claude Desktop için ince MCP sarmalayıcı (`get_transcript` aracı, `transcript.load`'u kullanır; `mcp<2` sabitli, v2'de FastMCP yeniden adlandırıldı).
 - `skills/summarize/SKILL.md`: özetin biçimi ve kalite kuralları (özet Claude Code tarafından yazılır; ayrı LLM yok).
 - Testler: `.venv/bin/pytest -q`, lint: `.venv/bin/ruff check .`; plugin: `claude plugin validate .`.
@@ -43,7 +43,7 @@ sızan etiketler) ve tarayıcıya göre değişiyordu (ör. Edge'de İngilizce�
   yazar), TXT/PDF indirme (PDF: `vendor/jspdf.umd.min.js` + Türkçe karakterler için gömülü font).
 - `library.js`: kütüphane — "Dosyalarım"/"Notlarım" iki sekme; Dosyalarım'da klasörler (özel ikon/görsel,
   not, sabitleme), arama, favoriler, "bunu hatırlıyor musun?" hatırlatma kartı; Notlarım'da birleşik not
-  sistemi (`skimcastNotes` — video notu/favori notu/serbest not hepsi burada, isteğe bağlı kaynak bağlantısı
+  sistemi (`talklineNotes` — video notu/favori notu/serbest not hepsi burada, isteğe bağlı kaynak bağlantısı
   ve alıntıyla); yedekleme/geri yükleme (notlar dahil), Markdown dışa aktarma.
 - `theme.js` / `lang.js`: paylaşılan tema (açık/koyu) ve arayüz dili (TR/EN, tarayıcı dilinden bağımsız).
 - Testler: `extension/test.mjs` (saf mantık fonksiyonları) — `node extension/test.mjs`.
