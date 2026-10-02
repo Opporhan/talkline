@@ -1,12 +1,7 @@
 // Talkline (uzantı): background.js — transcript'i toplar, arşive kaydeder, görüntüleyici sekmesini açar.
 // Podcast RSS / Apple Podcasts / web sayfası: doğrudan JS fetch ile (aşağıda). YouTube
 // de doğrudan tarayıcıdan (InnerTube ANDROID istemcisi, bkz. fromYoutubeDirect).
-//
-// Eskiden burada bir de Groq'a (ücretsiz LLM API'si) istek atıp özet çıkarma adımı vardı. Bir gece
-// boyunca kota/model/hız-sınırı sorunlarıyla uğraştıktan sonra (bkz. git geçmişi) bilinçli olarak
-// vazgeçildi: ücretsiz bulut LLM'lerin kotaları güvenilir bir ürün için yetersiz. Bunun yerine zaten
-// sağlam çalışan parçaya (transcript çıkarma) odaklanıldı — özet yerine aranabilir/atlanabilir bir
-// transcript görüntüleyici + kişisel arşiv.
+// Özet üretmez, hiçbir LLM'e istek atmaz.
 
 importScripts("migrate.js");
 // Eski "skimcast…" depolama anahtarlarını bir kerelik "talkline…"ya taşı (bkz. migrate.js).
@@ -68,9 +63,8 @@ function youtubeId(url) {
 //
 // Asıl yol (fromYoutubeDirect): youtube_transcript_api'nin yaptığının aynısı — InnerTube "player"
 // uç noktasına ANDROID istemcisi olarak sorup altyazı listesini alıyor, altyazı XML'ini doğrudan
-// indiriyoruz. Bu yol pot token istemiyor ve istek kullanıcının KENDİ IP'sinden gidiyor. Eskiden bunu
-// barındırılan bir sunucu (Cloud Run) yapıyordu; YouTube veri merkezi IP'lerini "Sign in to confirm
-// you're not a bot" diyerek engellediği için kaldırıldı (bkz. git geçmişi).
+// indiriyoruz. Bu yol pot token istemiyor ve istek kullanıcının KENDİ IP'sinden gidiyor
+// (YouTube veri merkezi IP'lerini "Sign in to confirm you're not a bot" diyerek engelliyor).
 const INNERTUBE_CLIENT = { clientName: "ANDROID", clientVersion: "20.10.38" };
 
 // transcript.py'deki _pick_track ile aynı: elle yazılmış > otomatik; aynı grupta langs sırası kazanır.
@@ -386,7 +380,7 @@ function parseTimeLabel(label) {
   return parts[0] * 3600 + parts[1] * 60 + parts[2];
 }
 
-// Otomatik altyazılar (YouTube/whisper) konuşma olmayan anları "(müzik)", "[Music]", "(alkış)" gibi
+// Otomatik altyazılar konuşma olmayan anları "(müzik)", "[Music]", "(alkış)" gibi
 // parantez/köşeli parantez içinde işaretliyor — bunlar gerçek konuşma değil, arama/alıntıda
 // gürültü yaratıyor. Bilinen etiketleri (TR+EN) satırdan siler; satırın tamamı bir etiketten ibaretse
 // (ör. sadece "(müzik)") blok tamamen atlanır.
@@ -396,7 +390,7 @@ function stripNonSpeech(text) {
   return text.replace(NON_SPEECH_RE, "").replace(/\s{2,}/g, " ").trim();
 }
 
-// Hem native (Python) tarafının hem de kendi toBlocks()'umuzun ürettiği "[mm:ss] metin" satırlarını
+// YouTube yolunun ve kendi toBlocks()'umuzun ürettiği "[mm:ss] metin" satırlarını
 // {sec, text} nesnelerine çevirir — görüntüleyici ve kütüphane (arama, tıkla-git, reklam tespiti)
 // bunun üzerinden çalışır. Zaman damgası yoksa (web sayfası) sec null kalır.
 function parseTimedBlocks(text) {
@@ -435,10 +429,8 @@ async function saveToArchive(id, url, meta, blocks) {
   return entry;
 }
 
-// Tek iş: transcript'i almak, arşive kaydetmek, görüntüleyici sekmesini açmak. Artık bir LLM'e istek
-// atmıyoruz (bkz. proje geçmişi: Groq'un ücretsiz katman kotaları + servis çalışanının uzun işlerin
-// ortasında Chrome tarafından sonlandırılması bütün geceyi almıştı) — transcript alma saniyeler
-// sürdüğü için servis çalışanının ömrüyle ilgili bir risk de yok.
+// Tek iş: transcript'i almak, arşive kaydetmek, görüntüleyici sekmesini açmak. Transcript alma saniyeler
+// sürdüğü için servis çalışanının ömrüyle ilgili bir risk yok.
 // Hem popup'tan (mesajla) hem sağ tık menüsünden çağrıldığı için ortak bir fonksiyona çıkarıldı.
 // YouTube yolu (fromYoutubeDirect), gösterim bloğuna (~30sn) ek olarak İÇİNE giren HAM, ince taneli
 // altyazı parçalarını da veriyor (block.words) — kelime kelime videoyla senkron takip bunları kullanıyor.

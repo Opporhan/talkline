@@ -1,6 +1,5 @@
-// Talkline (uzantı): popup.js — link gir, transcript'i getir. Özetleme/dil seçimi/API anahtarı yok
-// artık (bkz. proje kararı: LLM özetleme terk edildi) — background.js transcript'i alıp arşive kaydeder
-// ve görüntüleyici sekmesini kendisi açar.
+// Talkline (uzantı): popup.js — link gir, transcript'i getir. background.js transcript'i alıp arşive
+// kaydeder ve görüntüleyici sekmesini kendisi açar.
 
 function applyI18n() {
   document.title = t("ext_name");

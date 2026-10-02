@@ -48,10 +48,6 @@ ile de kurabilirsin.
 - [ ] **Yedekle** → bir dosya iner. **Geri Yükle** ile aynı dosyayı yükle. **Beklenen:** Hiçbir şey kaybolmaz.
 - [ ] Açık/koyu tema ve TR/EN dil düğmesi tüm sayfalarda çalışır.
 
-## 5. Eski sürümden gelenler (skimcast → Talkline)
-- [ ] Eski sürümde getirdiğin videolar, favoriler, klasörler ve notlar Talkline'da da duruyor.
-- [ ] Eski sürümde aldığın bir yedek dosyası **Geri Yükle** ile açılıyor.
-
 ## Hata bildirirken
 Tarayıcı + sürümü, madde numarası, denediğin link, ekrandaki mesaj. YouTube sayfasındaysa F12 →
 Console'daki kırmızı satırların ekran görüntüsü. Bildirim yeri:
