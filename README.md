@@ -39,7 +39,7 @@ The library — folders, favorites, notes, backup:
 
 ### What it can't do
 
-- **No captions, no transcript.** The extension does not do speech-to-text; a YouTube video without any captions gives "This video has no captions", and a podcast only works if its feed carries a [`<podcast:transcript>`](https://podcasting2.org/docs/podcast-namespace/tags/transcript) tag (most don't). The plugin below can transcribe audio locally.
+- **No captions, no transcript.** The extension does not do speech-to-text; a YouTube video without any captions gives a "no captions" error (error messages are currently in Turkish only), and a podcast only works if its feed carries a [`<podcast:transcript>`](https://podcasting2.org/docs/podcast-namespace/tags/transcript) tag (most don't). The plugin below can transcribe audio locally.
 - **No summaries, no translation** — both were removed on purpose.
 - **No Spotify** (DRM). Use the podcast's Apple Podcasts or RSS link.
 - **No sync between devices** — move your library with Back up → Restore.

@@ -7,7 +7,6 @@ Formdaki alanlara kopyala-yapıştır için. Paket: `python3 scripts/build_store
 - **Kategori:** Productivity (Verimlilik). Alternatif: Education.
 - **Dil:** Türkçe + English. Paket iki dili de içeriyor (`_locales/`); varsayılan dil `en`.
 - **Gizlilik politikası URL'si:** https://github.com/Opporhan/talkline/blob/main/PRIVACY.md
-  (Bağlantının çalışması için önce `PRIVACY.md` GitHub'a push edilmeli.)
 - **Destek URL'si:** https://github.com/Opporhan/talkline/issues
 
 ## Ayrıntılı açıklama — English
@@ -56,7 +55,7 @@ Fetch the transcript of a YouTube video, podcast episode or web article the user
 
 | İzin | Gerekçe (forma yapıştır) |
 |---|---|
-| `storage` | Saves fetched transcripts, favorites, folders, notes, reading progress and settings locally in the browser so the user's library persists. |
+| `storage` | Saves fetched transcripts, favorites, folders, notes and settings locally in the browser so the user's library persists. |
 | `unlimitedStorage` | The user's library holds full transcripts (a long podcast can be hundreds of KB) plus uploaded folder images; the default 10 MB local quota fills up after a few dozen items. |
 | `contextMenus` | Adds one right-click item, "Talkline: Get Transcript", so the user can fetch the transcript of the page, video or link they right-clicked without opening the popup. |
 | `notifications` | After a transcript is fetched from the right-click menu (no popup is open), shows one notification that it is ready, or why it failed. |
@@ -82,11 +81,11 @@ Diğer kategorilerin hiçbiri işaretlenmez. Üç beyanın üçü de işaretleni
 - [x] I do not use or transfer user data for purposes that are unrelated to my item's single purpose
 - [x] I do not use or transfer user data to determine creditworthiness or for lending purposes
 
-## Görseller (senin hazırlaman gerekiyor)
+## Görseller (`store-assets/`)
 
-- **Ekran görüntüsü:** en az 1, en fazla 5 adet; 1280×800 ya da 640×400. Öneri: YouTube kenar paneli,
-  arama sonucu, kütüphane, sesli okuma.
-- **Küçük tanıtım görseli:** 440×280 (Chrome Web Store'da zorunlu).
+- **Ekran görüntüsü:** en az 1, en fazla 5 adet; 1280×800 ya da 640×400. Hazır olanlar:
+  `1-goruntuleyici.png`, `2-kutuphane.png`, `3-youtube.png` (1280×800).
+- **Küçük tanıtım görseli:** 440×280 (Chrome Web Store'da zorunlu): `tanitim-440x280.png`.
 - **Simge:** 128×128. Pakette zaten var (`extension/icons/icon128.png`).
 
 ## Edge Add-ons
