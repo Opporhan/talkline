@@ -1,6 +1,6 @@
 # Talkline browser extension — Privacy Policy
 
-_Last updated: 2026-09-26_ · [Türkçe aşağıda](#türkçe)
+_Last updated: 2026-10-02_ · [Türkçe aşağıda](#türkçe)
 
 Talkline turns a YouTube video, podcast episode or article into a searchable, timestamped transcript.
 It has **no account, no analytics, no ads and no server of its own**. The developer receives no data.
@@ -8,8 +8,8 @@ It has **no account, no analytics, no ads and no server of its own**. The develo
 ## What is stored, and where
 
 Everything you create stays in your browser's extension storage (`chrome.storage.local`) on your device:
-transcripts you fetch, favorites, folders (including icons/images you upload), notes, reading progress and
-your text-to-speech voice choice. It is never sent to the developer. Removing the extension deletes it.
+transcripts you fetch, favorites, folders (including icons/images you upload), notes and your
+text-to-speech voice choice. It is never sent to the developer. Removing the extension deletes it.
 The backup feature writes a file only when you click it, to a place you choose.
 
 Two small preferences — light/dark theme and interface language — are saved with `chrome.storage.sync`,
@@ -44,7 +44,7 @@ Talkline; bir YouTube videosunu, podcast bölümünü ya da makaleyi aranabilir,
 çevirir. **Hesap, analitik, reklam ve kendine ait bir sunucu yoktur.** Geliştiriciye hiçbir veri gelmez.
 
 **Saklanan veriler:** Getirdiğin transcript'ler, favoriler, klasörler (yüklediğin ikon/görseller dahil),
-notlar, okuma ilerlemesi ve sesli okuma ses tercihi yalnızca tarayıcının uzantı deposunda
+notlar ve sesli okuma ses tercihi yalnızca tarayıcının uzantı deposunda
 (`chrome.storage.local`), senin cihazında durur; geliştiriciye gönderilmez. Uzantıyı kaldırınca silinir.
 Yedekleme yalnızca sen tıkladığında, seçtiğin yere bir dosya yazar. Tema ve arayüz dili tercihleri
 `chrome.storage.sync` ile saklanır; tarayıcı eşitlemesi açıksa tarayıcın (Google/Microsoft) bunları diğer
